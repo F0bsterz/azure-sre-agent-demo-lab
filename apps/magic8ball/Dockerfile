@@ -55,8 +55,9 @@ COPY --from=backend /build/backend/dist ./dist
 COPY --from=frontend /build/frontend/dist ./dist/public
 COPY backend/package.json ./package.json
 
-RUN addgroup -S sre && adduser -S -G sre sre && chown -R sre:sre /app
-USER sre
+# Numeric UID: Kubernetes runAsNonRoot cannot verify a username-based USER.
+RUN addgroup -S -g 10001 sre && adduser -S -u 10001 -G sre sre && chown -R 10001:10001 /app
+USER 10001
 
 EXPOSE 8080 8443
 

@@ -28,6 +28,9 @@ spec:
       serviceAccountName: scenario-runner
       securityContext:
         runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
         seccompProfile:
           type: RuntimeDefault
       # The runner must stay schedulable during scenario 02, otherwise the reset

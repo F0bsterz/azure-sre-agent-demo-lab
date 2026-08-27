@@ -58,8 +58,12 @@ COPY backend/package.json ./package.json
 
 # The controller writes scenario state and logs to the mounted demo disk, so it
 # runs as a non-root user that owns nothing outside /app.
-RUN addgroup -S sre && adduser -S -G sre sre && chown -R sre:sre /app
-USER sre
+#
+# The UID is explicit and numeric because Kubernetes' runAsNonRoot check cannot
+# resolve a username to a UID from the image, and rejects the pod with
+# CreateContainerConfigError if USER is a name.
+RUN addgroup -S -g 10001 sre && adduser -S -u 10001 -G sre sre && chown -R 10001:10001 /app
+USER 10001
 
 EXPOSE 8080
 

@@ -24,6 +24,12 @@ param labIdentityPrincipalId string
 @description('Object ID of the AKS kubelet identity that pulls images from ACR.')
 param kubeletIdentityObjectId string
 
+@description('Principal ID of the AKS cluster (control plane) managed identity.')
+param aksClusterPrincipalId string
+
+@description('Name of the lab virtual network.')
+param vnetName string
+
 @description('Object ID of the principal running the deployment. Empty skips the Key Vault Secrets Officer grant.')
 param deployerObjectId string = ''
 
@@ -32,6 +38,26 @@ var contributorRoleId = 'b24988ac-6180-42a0-ab88-20f7382dd24c'
 var keyVaultSecretsUserRoleId = '4633458b-17de-408a-b874-0445c86b69e6'
 var keyVaultSecretsOfficerRoleId = 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7'
 var monitoringMetricsPublisherRoleId = '3913510d-42f4-4e42-8a64-420c390055eb'
+var networkContributorRoleId = '4d97b98b-1d4f-4787-a291-c67834d212e7'
+
+resource vnet 'Microsoft.Network/virtualNetworks@2023-11-01' existing = {
+  name: vnetName
+}
+
+// Required for a bring-your-own-VNet cluster: without read/write access to the
+// subnet, AKS cannot provision the Magic 8 Ball public load balancer or the
+// scenario-runner internal load balancer, and services stay stuck in Pending
+// with SyncLoadBalancerFailed.
+resource aksNetworkContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(vnet.id, aksClusterPrincipalId, networkContributorRoleId)
+  scope: vnet
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', networkContributorRoleId)
+    principalId: aksClusterPrincipalId
+    principalType: 'ServicePrincipal'
+    description: 'Lets AKS manage load balancers and IP configuration in the lab VNet.'
+  }
+}
 
 resource acr 'Microsoft.ContainerRegistry/registries@2023-11-01-preview' existing = {
   name: acrName

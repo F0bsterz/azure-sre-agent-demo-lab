@@ -38,8 +38,9 @@ COPY --from=deps /build/node_modules ./node_modules
 COPY --from=build /build/dist ./dist
 COPY package.json ./package.json
 
-RUN addgroup -S sre && adduser -S -G sre sre && chown -R sre:sre /app
-USER sre
+# Numeric UID: Kubernetes runAsNonRoot cannot verify a username-based USER.
+RUN addgroup -S -g 10001 sre && adduser -S -u 10001 -G sre sre && chown -R 10001:10001 /app
+USER 10001
 
 EXPOSE 8090
 

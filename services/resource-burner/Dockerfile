@@ -24,8 +24,9 @@ RUN apk add --no-cache tini
 WORKDIR /app
 COPY burn.js ./burn.js
 
-RUN addgroup -S sre && adduser -S -G sre sre
-USER sre
+# Numeric UID: Kubernetes runAsNonRoot cannot verify a username-based USER.
+RUN addgroup -S -g 10001 sre && adduser -S -u 10001 -G sre sre
+USER 10001
 
 ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["node", "burn.js"]

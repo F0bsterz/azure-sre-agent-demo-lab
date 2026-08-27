@@ -202,6 +202,8 @@ module rbac 'modules/rbac.bicep' = if (assignRoles) {
     keyVaultName: security.outputs.keyVaultName
     labIdentityPrincipalId: security.outputs.identityPrincipalId
     kubeletIdentityObjectId: aks.outputs.kubeletIdentityObjectId
+    aksClusterPrincipalId: aks.outputs.clusterPrincipalId
+    vnetName: network.outputs.vnetName
     deployerObjectId: deployerObjectId
   }
 }
