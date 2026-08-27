@@ -726,7 +726,10 @@ CACERT
 chmod 0644 ${DEMO_MOUNT_PATH}/certs/ca.crt
 
 # Pull from ACR with the VM's managed identity — no registry password anywhere.
-az login --identity --username ${IDENTITY_CLIENT_ID} --only-show-errors >/dev/null
+# Azure CLI removed --username for managed identity login; --client-id is the
+# current form. The fallback keeps this working on older CLI builds.
+az login --identity --client-id ${IDENTITY_CLIENT_ID} --only-show-errors >/dev/null 2>&1 \
+  || az login --identity --username ${IDENTITY_CLIENT_ID} --only-show-errors >/dev/null
 TOKEN=\$(az acr login --name ${ACR_NAME} --expose-token --output tsv --query accessToken)
 echo "\${TOKEN}" | docker login ${ACR_LOGIN_SERVER} --username 00000000-0000-0000-0000-000000000000 --password-stdin
 docker pull ${CONTROLLER_IMAGE}
