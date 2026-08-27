@@ -1,0 +1,58 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# Environment / secrets — NEVER commit
+.env
+.env.local
+.env.*.local
+*.env
+!.env.example
+
+# Azure / deployment state
+.azure/
+azure.err
+*.azcli
+.lab-state.json
+.lab-state.*.json
+outputs.json
+deployment-outputs.json
+
+# Credentials & keys
+*.pem
+*.key
+*.pfx
+*.p12
+*.crt
+*.csr
+*.srl
+certs/
+kubeconfig
+*.kubeconfig
+sp-credentials.json
+id_rsa*
+*.pub
+!**/public/**
+
+# Logs
+*.log
+npm-debug.log*
+yarn-error.log*
+logs/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Test output
+coverage/
+.nyc_output/
+test-results/

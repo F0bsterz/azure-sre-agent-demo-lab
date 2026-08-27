@@ -1,0 +1,23 @@
+{
+  "name": "azure-sre-agent-demo-lab",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A small, inexpensive, intentionally faultable Azure lab for demonstrating Azure SRE Agent detection, investigation and remediation.",
+  "license": "MIT",
+  "workspaces": [
+    "apps/scenario-controller/backend",
+    "apps/scenario-controller/frontend",
+    "apps/magic8ball/backend",
+    "apps/magic8ball/frontend",
+    "services/scenario-runner"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "node --test tests/*.test.mjs",
+    "lint:bicep": "az bicep build --file infra/bicep/main.bicep --stdout > /dev/null"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
