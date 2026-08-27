@@ -125,9 +125,12 @@ metadata:
     app: magic8ball
 spec:
   type: LoadBalancer
-  # Restricted to the administrator CIDR by default rather than the Internet.
+  # Restricted rather than open to the Internet. Both entries are required: the
+  # administrator's address for the browser, and the App VM's address because
+  # the Scenario Controller's synthetic HTTP and TLS probes originate there.
   loadBalancerSourceRanges:
     - __ADMIN_CIDR__
+    - __APP_VM_CIDR__
   selector:
     app: magic8ball
   ports:

@@ -450,8 +450,17 @@ out() { echo "${OUTPUTS}" | jq -r --arg k "$1" '.[$k].value // empty'; }
 
 ACR_NAME="$(out acrName)"
 ACR_LOGIN_SERVER="$(out acrLoginServer)"
-APPI_CONNECTION_STRING="$(out appInsightsConnectionString)"
 APPI_NAME="$(out appInsightsName)"
+APPI_CONNECTION_STRING="$(out appInsightsConnectionString)"
+# A @secure() Bicep output is redacted when the deployment is read back, so it
+# returns empty here. Fetch it from the resource instead, otherwise both
+# applications start with telemetry silently disabled.
+if [[ -z "${APPI_CONNECTION_STRING}" ]]; then
+  APPI_CONNECTION_STRING="$(az resource show -g "${RESOURCE_GROUP}" -n "${APPI_NAME}" \
+    --resource-type Microsoft.Insights/components \
+    --query properties.ConnectionString -o tsv 2>/dev/null || true)"
+fi
+[[ -n "${APPI_CONNECTION_STRING}" ]] || warn "Application Insights connection string could not be read; telemetry will be disabled"
 LAW_NAME="$(out logAnalyticsWorkspaceName)"
 LAW_ID="$(out logAnalyticsWorkspaceId)"
 KEY_VAULT_NAME="$(out keyVaultName)"
@@ -658,6 +667,7 @@ render_manifest() {
     -e "s|__POSTGRES_DB__|${PG_DATABASE}|g" \
     -e "s|__POSTGRES_USER__|${PG_APP_USER}|g" \
     -e "s|__ADMIN_CIDR__|${ADMIN_CIDR}|g" \
+    -e "s|__APP_VM_CIDR__|${APP_VM_IP}/32|g" \
     -e "s|__LAB_SUFFIX__|${SUFFIX}|g" \
     "$1"
 }
@@ -665,6 +675,12 @@ render_manifest() {
 render_manifest "${REPO_ROOT}/k8s/resource-pressure/deployment.yaml" | kubectl apply -f -
 render_manifest "${REPO_ROOT}/k8s/scenario-runner/deployment.yaml" | kubectl apply -f -
 render_manifest "${REPO_ROOT}/k8s/magic8ball/deployment.yaml" | kubectl apply -f -
+
+# Secrets are injected as environment variables, which Kubernetes does not
+# refresh in a running pod. Credentials are regenerated on every deploy, so the
+# runner must restart or it keeps validating against the previous token and
+# rejects the controller with 401.
+kubectl -n sre-demo rollout restart deployment/scenario-runner >/dev/null 2>&1 || true
 
 info "Waiting for workloads to become ready..."
 kubectl -n sre-demo rollout status deployment/scenario-runner --timeout=300s || warn "scenario-runner rollout is slow"

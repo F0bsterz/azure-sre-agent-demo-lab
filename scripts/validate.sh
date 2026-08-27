@@ -185,21 +185,20 @@ report "PostgreSQL has no public IP" "$([[ "${PG_PUBLIC_IP}" == "0" ]] && echo t
 
 step "Telemetry"
 if [[ -n "${LAW_ID}" ]]; then
+  # Bounded: a slow or throttled workspace query must not hang validation.
+  la_query() {
+    timeout 60 az monitor log-analytics query --workspace "$1" \
+      --analytics-query "$2" -o json 2>/dev/null | jq -r '.[0].Count // 0' 2>/dev/null || echo 0
+  }
+
   QUERY='union isfuzzy=true AppMetrics, AppRequests, AppDependencies | where TimeGenerated > ago(30m) | count'
-  ROWS="$(az monitor log-analytics query --workspace "$(state_get logAnalyticsName)" \
-    --analytics-query "${QUERY}" -o json 2>/dev/null | jq -r '.[0].Count // 0' || echo 0)"
-  if [[ "${ROWS}" == "0" ]]; then
-    # The workspace resource ID form is needed when the workspace GUID is unknown.
-    ROWS="$(az monitor log-analytics query --workspace "${LAW_ID}" \
-      --analytics-query "${QUERY}" -o json 2>/dev/null | jq -r '.[0].Count // 0' || echo 0)"
-  fi
+  ROWS="$(la_query "${LAW_ID}" "${QUERY}")"
   report "Application telemetry reaching Log Analytics" \
     "$([[ "${ROWS}" != "0" ]] && echo true || echo false)" \
     "${ROWS} row(s) in the last 30 minutes (allow 5-10 min after deployment)"
 
   CONTAINER_QUERY='KubePodInventory | where TimeGenerated > ago(30m) | where Namespace == "sre-demo" | count'
-  CROWS="$(az monitor log-analytics query --workspace "${LAW_ID}" \
-    --analytics-query "${CONTAINER_QUERY}" -o json 2>/dev/null | jq -r '.[0].Count // 0' || echo 0)"
+  CROWS="$(la_query "${LAW_ID}" "${CONTAINER_QUERY}")"
   report "Container Insights collecting AKS data" \
     "$([[ "${CROWS}" != "0" ]] && echo true || echo false)" "${CROWS} row(s)"
 else
