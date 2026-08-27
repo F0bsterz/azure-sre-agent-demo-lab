@@ -422,6 +422,18 @@ Full detail in **[docs/SECURITY.md](docs/SECURITY.md)**. In summary:
 
 See **[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)**.
 
+**Cannot reach the apps?** Access is restricted to whichever IP ran `deploy.sh`.
+To allow another address (or after your IP changes):
+
+```bash
+./scripts/grant-access.sh                       # allow the machine you are on
+./scripts/grant-access.sh --cidr 203.0.113.10/32
+./scripts/grant-access.sh --cidr 203.0.113.10/32 --revoke
+```
+
+It adds to the existing allow-lists rather than replacing them, and covers SSH,
+the Scenario Controller and the Magic 8 Ball load balancer in one step.
+
 Quick checks:
 
 ```bash
