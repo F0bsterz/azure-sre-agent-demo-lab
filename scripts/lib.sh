@@ -109,12 +109,25 @@ load_env_file() {
 
 random_suffix() {
   # Lowercase alphanumeric, safe for storage-style names.
-  head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \n' | cut -c1-6
+  local hex
+  hex="$(head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+  printf '%s' "${hex:0:6}"
 }
 
+# Reads a BOUNDED amount of entropy and slices in the shell.
+#
+# The obvious `tr -dc ... < /dev/urandom | head -c 32` cannot be used here: head
+# closes the pipe after 32 bytes, tr dies with SIGPIPE (141), `set -o pipefail`
+# propagates that as the pipeline's status and `set -e` then aborts the script.
+# Bounding the producer means every stage exits 0.
 generate_password() {
-  # 32 chars, alphanumeric only: avoids quoting hazards in psql, shell and YAML.
-  LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 32
+  local raw
+  raw="$(head -c 4096 /dev/urandom | LC_ALL=C tr -dc 'A-Za-z0-9')"
+  if (( ${#raw} < 32 )); then
+    raw="${raw}$(date +%s%N | sha256sum | cut -c1-32)"
+  fi
+  # Alphanumeric only: avoids quoting hazards in psql, YAML and shell.
+  printf '%s' "${raw:0:32}"
 }
 
 detect_public_ip() {
