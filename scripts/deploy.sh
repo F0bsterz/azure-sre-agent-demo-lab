@@ -231,11 +231,15 @@ done
 # Per-family quota matters as much as the regional total: a family limit of zero
 # fails the deployment even when plenty of regional cores remain.
 USAGE_JSON="$(az vm list-usage --location "${LOCATION}" -o json 2>/dev/null || echo '[]')"
+# az returns limit/currentValue as STRINGS, so they are coerced explicitly here.
 family_headroom() {
   local family="$1"
-  echo "${USAGE_JSON}" | jq -r --arg f "${family}" \
-    '[.[] | select((.name.value | ascii_downcase) == ($f | ascii_downcase))][0]
-     | if . == null then "unknown" else ((.limit // 0) - (.currentValue // 0) | tostring) end'
+  echo "${USAGE_JSON}" | jq -r --arg f "${family}" '
+    [.[] | select((.name.value | ascii_downcase) == ($f | ascii_downcase))][0]
+    | if . == null then "unknown"
+      else ((.limit // 0 | tostring | tonumber) - (.currentValue // 0 | tostring | tonumber) | floor | tostring)
+      end
+  ' 2>/dev/null || echo "unknown"
 }
 
 AKS_FAMILY="$(sku_family "${SELECTED_AKS_SKU}")"
