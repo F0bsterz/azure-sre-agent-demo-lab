@@ -477,16 +477,57 @@ printf '     AKS    : %s (k8s %s)\n' "${AKS_NAME}" "${AKS_K8S_VERSION}"
 # --- 14. Key Vault ----------------------------------------------------------
 
 step "14/20  Storing secrets in Key Vault"
+KV_STORED=0
+KV_FAILED=0
+KV_LAST_ERROR=""
+
 kv_set() {
-  az keyvault secret set --vault-name "${KEY_VAULT_NAME}" --name "$1" --value "$2" \
-    --only-show-errors -o none 2>/dev/null || warn "Could not store secret '$1' (check Key Vault RBAC propagation)"
+  local name="$1" value="$2" attempt
+  # Retry: data-plane RBAC can take a minute to propagate after assignment.
+  for attempt in 1 2 3; do
+    if KV_LAST_ERROR="$(az keyvault secret set --vault-name "${KEY_VAULT_NAME}" \
+         --name "$1" --value "$2" --only-show-errors -o none 2>&1)"; then
+      KV_STORED=$(( KV_STORED + 1 ))
+      return 0
+    fi
+    [[ ${attempt} -lt 3 ]] && sleep 15
+  done
+  KV_FAILED=$(( KV_FAILED + 1 ))
+  return 0
 }
-# RBAC assignments can take a moment to propagate to the data plane.
-sleep 15
+
 kv_set postgres-app-password "${PG_APP_PASSWORD}"
 kv_set postgres-scenario-password "${PG_SCENARIO_PASSWORD}"
 kv_set scenario-runner-token "${RUNNER_TOKEN}"
-ok "Secrets stored in ${KEY_VAULT_NAME}"
+
+if (( KV_FAILED == 0 )); then
+  ok "Stored ${KV_STORED} secret(s) in ${KEY_VAULT_NAME}"
+else
+  # Report honestly. The lab is unaffected, but claiming success here would be a
+  # lie the operator might rely on later.
+  warn "Stored ${KV_STORED} of $(( KV_STORED + KV_FAILED )) secret(s) in ${KEY_VAULT_NAME}"
+  if echo "${KV_LAST_ERROR}" | grep -qi "public network access is disabled\|ForbiddenByConnection"; then
+    cat <<KVNOTE
+
+  Key Vault data-plane access is blocked from this machine because the vault has
+  public network access disabled. On governed subscriptions this is commonly
+  enforced by Azure Policy, which overrides the template setting.
+
+  THIS DOES NOT AFFECT THE LAB. Key Vault is a convenience store for operators;
+  it is not in any runtime path. Credentials reach the workloads directly:
+    - PostgreSQL VM  : Bicep @secure() parameter -> extension protectedSettings
+                       (encrypted at rest by Azure)
+    - AKS            : Kubernetes secrets created by this script
+    - App VM         : /etc/sre-demo-controller.env, mode 0600
+
+  To store them anyway, run from a permitted network, or:
+    az keyvault update -g ${RESOURCE_GROUP} -n ${KEY_VAULT_NAME} --public-network-access Enabled
+
+KVNOTE
+  else
+    warn "Last error: $(echo "${KV_LAST_ERROR}" | head -3)"
+  fi
+fi
 
 # --- 15. Container images ---------------------------------------------------
 
