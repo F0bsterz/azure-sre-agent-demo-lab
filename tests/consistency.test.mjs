@@ -284,3 +284,33 @@ test('the architecture diagram and docs state the real number of alert rules', (
     }
   }
 });
+
+test('the SRE agent is opt-in and its modes agree across Bicep and deploy.sh', () => {
+  const main = read('infra/bicep/main.bicep');
+  const module = read('infra/bicep/modules/sre-agent.bicep');
+  const deploy = read('scripts/deploy.sh');
+
+  assert.match(
+    main,
+    /param deploySreAgent bool = false/,
+    'the agent must default to off so an ordinary deploy never creates a chargeable agent',
+  );
+  assert.match(main, /module sreAgent .* = if \(deploySreAgent\)/);
+
+  assert.ok(deploy.includes('--with-agent'), 'deploy.sh should expose --with-agent');
+  assert.ok(
+    deploy.includes('deploySreAgent="${WITH_AGENT}"'),
+    'the flag must actually reach the template',
+  );
+
+  // The module enumerates the allowed modes; deploy.sh rejects anything else
+  // before deploying. If one list grows, the other has to.
+  const allowed = [...module.matchAll(/^\s{2}'(ReadOnly|Review|Autonomous)'$/gm)].map((m) => m[1]);
+  assert.deepEqual(allowed, ['ReadOnly', 'Review', 'Autonomous']);
+  for (const mode of allowed) {
+    assert.ok(
+      new RegExp(`\\b${mode}\\b`).test(deploy.match(/case "\$\{AGENT_MODE\}" in[\s\S]*?esac/)[0]),
+      `deploy.sh should accept --agent-mode ${mode}`,
+    );
+  }
+});

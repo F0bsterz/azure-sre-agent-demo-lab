@@ -30,6 +30,29 @@ jq -r '{subscriptionId, resourceGroup, location, appInsightsName, logAnalyticsNa
 
 ## 1. Create or select an Azure SRE Agent
 
+### With the deployment (recommended)
+
+`deploy.sh` can create the agent for you. It is opt-in because the agent is chargeable and is
+not offered in every region the lab runs in:
+
+```bash
+./scripts/deploy.sh --location eastus2 --with-agent --agent-mode Review
+```
+
+`--agent-mode` is `ReadOnly` (investigate only), `Review` (default — pause for human approval
+before each remediation) or `Autonomous` (act unattended). Use `--agent-location` when the lab
+region does not offer SRE Agent; the agent may sit in a different region from the lab.
+
+SRE Agent is **not available in `eastus`**, the default lab region. `deploy.sh` checks before
+deploying and prints the regions that do offer it.
+
+The agent is created with a system-assigned identity and no role assignments. Its name,
+region, mode and principal ID are written to `.lab-state.json`, and the principal ID is
+printed at the end of the deployment for step 3.
+
+An existing lab can gain an agent by re-running the deployment with the same `--suffix` and
+adding `--with-agent`; the deployment is idempotent.
+
 ### Portal
 
 1. Sign in to the [Azure portal](https://portal.azure.com).

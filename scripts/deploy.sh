@@ -21,6 +21,9 @@ ADMIN_CIDR="${ADMIN_CIDR:-}"
 SKIP_BUILD=false
 SKIP_APPS=false
 ASSUME_YES="${ASSUME_YES:-false}"
+WITH_AGENT="${WITH_AGENT:-false}"
+AGENT_MODE="${AGENT_MODE:-Review}"
+AGENT_LOCATION="${AGENT_LOCATION:-}"
 
 usage() {
   cat <<'USAGE'
@@ -35,6 +38,13 @@ Usage: scripts/deploy.sh [options]
                          Prompted for interactively when omitted.
   --skip-build           Do not rebuild container images
   --skip-apps            Deploy infrastructure only
+  --with-agent           Also create an Azure SRE Agent (Microsoft.App/agents).
+                         Off by default: it is a chargeable managed service and
+                         is not offered in every region the lab runs in.
+  --agent-mode <mode>    ReadOnly | Review | Autonomous (default: Review).
+                         Review pauses for human approval before each remediation.
+  --agent-location <r>   Region for the agent when the lab region does not offer
+                         it. Defaults to --location.
   --yes                  Do not prompt for confirmation
   -h, --help             Show this help
 
@@ -42,6 +52,7 @@ Examples:
   ./scripts/deploy.sh --subscription 00000000-0000-0000-0000-000000000000 --location eastus
   ./scripts/deploy.sh --location westus3 --admin-cidr 203.0.113.10/32 --yes
   ./scripts/deploy.sh --location eastus2 --admin-cidr 203.0.113.10/32 --admin-cidr 198.51.100.7/32
+  ./scripts/deploy.sh --location eastus2 --with-agent --agent-mode Review
 USAGE
 }
 
@@ -53,6 +64,9 @@ while [[ $# -gt 0 ]]; do
     --admin-cidr) ADMIN_CIDR="${ADMIN_CIDR:+${ADMIN_CIDR},}$2"; shift 2 ;;
     --skip-build) SKIP_BUILD=true; shift ;;
     --skip-apps) SKIP_APPS=true; shift ;;
+    --with-agent) WITH_AGENT=true; shift ;;
+    --agent-mode) AGENT_MODE="$2"; WITH_AGENT=true; shift 2 ;;
+    --agent-location) AGENT_LOCATION="$2"; WITH_AGENT=true; shift 2 ;;
     --yes|-y) ASSUME_YES=true; shift ;;
     -h|--help) usage; exit 0 ;;
     *) die "Unknown argument: $1 (use --help)" ;;
@@ -111,6 +125,8 @@ PROVIDERS=(
   Microsoft.OperationalInsights Microsoft.Insights Microsoft.Monitor
   Microsoft.AlertsManagement Microsoft.Authorization
 )
+# Microsoft.App owns Microsoft.App/agents, and is only needed when an agent is requested.
+[[ "${WITH_AGENT}" == "true" ]] && PROVIDERS+=(Microsoft.App)
 PENDING=()
 for provider in "${PROVIDERS[@]}"; do
   state="$(az provider show -n "${provider}" --query registrationState -o tsv 2>/dev/null || echo NotFound)"
@@ -135,6 +151,33 @@ else
 fi
 
 # --- 6. Administrator CIDRs -------------------------------------------------
+
+if [[ "${WITH_AGENT}" == "true" ]]; then
+  step "5b/20 Validating Azure SRE Agent options"
+
+  case "${AGENT_MODE}" in
+    ReadOnly|Review|Autonomous) ;;
+    *) die "--agent-mode must be ReadOnly, Review or Autonomous (got '${AGENT_MODE}')" ;;
+  esac
+
+  [[ -n "${AGENT_LOCATION}" ]] || AGENT_LOCATION="${LOCATION}"
+
+  # The provider reports display names ("East US 2") while --location is a slug
+  # ("eastus2"), so both sides are squashed to a comparable form.
+  slug() { tr -d ' ' | tr '[:upper:]' '[:lower:]'; }
+  AGENT_REGIONS_RAW="$(az provider show -n Microsoft.App \
+    --query "resourceTypes[?resourceType=='agents'].locations[]" -o tsv 2>/dev/null || true)"
+
+  if [[ -z "${AGENT_REGIONS_RAW}" ]]; then
+    warn "Could not read the regions offering SRE Agent; leaving the decision to ARM"
+  elif printf '%s\n' "${AGENT_REGIONS_RAW}" | slug | grep -qx "$(printf '%s' "${AGENT_LOCATION}" | slug)"; then
+    ok "SRE Agent is available in ${AGENT_LOCATION} (mode: ${AGENT_MODE})"
+  else
+    warn "SRE Agent is not offered in '${AGENT_LOCATION}'. Regions that do offer it:"
+    printf '%s\n' "${AGENT_REGIONS_RAW}" | sed 's/^/         /'
+    die "Re-run with --agent-location <supported-region>, or drop --with-agent. The agent may sit in a different region from the lab."
+  fi
+fi
 
 step "6/20  Determining administrator access CIDRs"
 
@@ -438,6 +481,9 @@ deploy_infra() {
       postgresMaxConnections="${POSTGRES_MAX_CONNECTIONS:-50}" \
       deployerObjectId="${DEPLOYER_OBJECT_ID}" \
       assignRoles="${assign_roles}" \
+      deploySreAgent="${WITH_AGENT}" \
+      sreAgentLocation="${AGENT_LOCATION}" \
+      sreAgentMode="${AGENT_MODE}" \
     --only-show-errors -o none
 }
 
@@ -511,6 +557,11 @@ out() { echo "${OUTPUTS}" | jq -r --arg k "$1" '.[$k].value // empty'; }
 
 ACR_NAME="$(out acrName)"
 ACR_LOGIN_SERVER="$(out acrLoginServer)"
+SRE_AGENT_NAME="$(out sreAgentName)"
+SRE_AGENT_ID="$(out sreAgentId)"
+SRE_AGENT_REGION="$(out sreAgentRegion)"
+SRE_AGENT_MODE="$(out sreAgentActionMode)"
+SRE_AGENT_PRINCIPAL_ID="$(out sreAgentPrincipalId)"
 APPI_NAME="$(out appInsightsName)"
 APPI_CONNECTION_STRING="$(out appInsightsConnectionString)"
 # A @secure() Bicep output is redacted when the deployment is read back, so it
@@ -993,12 +1044,31 @@ cat > "${STATE_FILE}" <<STATE
   "magic8ballIp": "${MAGIC8BALL_IP}",
   "magic8ballInternalIp": "${MAGIC8BALL_INTERNAL_IP}",
   "scenarioRunnerIp": "${RUNNER_IP}",
+  "sreAgentName": "${SRE_AGENT_NAME}",
+  "sreAgentId": "${SRE_AGENT_ID}",
+  "sreAgentLocation": "${SRE_AGENT_REGION}",
+  "sreAgentMode": "${SRE_AGENT_MODE}",
+  "sreAgentPrincipalId": "${SRE_AGENT_PRINCIPAL_ID}",
   "deployedAt": "${BUILD_TIMESTAMP}"
 }
 STATE
 chmod 600 "${STATE_FILE}"
 
 ELAPSED=$(( $(date +%s) - START_TIME ))
+if [[ -n "${SRE_AGENT_NAME}" ]]; then
+  SRE_AGENT_SUMMARY="  SRE Agent           : ${SRE_AGENT_NAME} (${SRE_AGENT_REGION}, mode ${SRE_AGENT_MODE})
+"
+  SRE_AGENT_NEXT_STEP="  4. Grant the agent access to this resource group:
+     ./scripts/enable-sre-remediation.sh --agent-principal-id ${SRE_AGENT_PRINCIPAL_ID}
+  5. Follow docs/AZURE-SRE-AGENT-SETUP.md to connect GitHub and run the first investigation.
+"
+else
+  SRE_AGENT_SUMMARY=""
+  SRE_AGENT_NEXT_STEP="  4. Follow docs/AZURE-SRE-AGENT-SETUP.md to connect an Azure SRE Agent,
+     or redeploy with --with-agent to have one created for you.
+"
+fi
+
 cat <<SUMMARY
 
 ${C_BOLD}${C_GREEN}Azure SRE Agent Demo Lab deployed in $(( ELAPSED / 60 ))m $(( ELAPSED % 60 ))s${C_RESET}
@@ -1014,7 +1084,7 @@ ${C_BOLD}${C_GREEN}Azure SRE Agent Demo Lab deployed in $(( ELAPSED / 60 ))m $((
   Application Insights: ${APPI_NAME}
   Log Analytics       : ${LAW_NAME}
   Key Vault           : ${KEY_VAULT_NAME}
-
+${SRE_AGENT_SUMMARY}
   SSH                 : ssh -i ${SSH_KEY_PATH} ${ADMIN_USERNAME}@${APP_VM_IP}
   kubectl             : export KUBECONFIG=${KUBECONFIG_PATH}
 
@@ -1022,7 +1092,6 @@ Next steps:
   1. Open the Scenario Controller and confirm all components are HEALTHY.
   2. Wait 5-10 minutes for telemetry to reach Application Insights.
   3. Run ./scripts/validate.sh to confirm the whole lab end to end.
-  4. Follow docs/AZURE-SRE-AGENT-SETUP.md to connect Azure SRE Agent.
-
+${SRE_AGENT_NEXT_STEP}
 Lab state written to .lab-state.json (git-ignored).
 SUMMARY

@@ -177,6 +177,9 @@ PowerShell:
 
 The deployment is idempotent — if it is interrupted, run it again.
 
+To have the deployment also create an Azure SRE Agent, add `--with-agent` (see
+[Azure SRE Agent setup](#azure-sre-agent-setup)). It is off by default.
+
 By default, SSH, the Scenario Controller and Magic 8 Ball are restricted to **your current
 public IP**. Override with `--admin-cidr 203.0.113.0/24` if you are demonstrating from
 elsewhere.
@@ -211,7 +214,10 @@ Deploy the Azure SRE Agent demo lab into my own GitHub repository and Azure subs
    - the Azure subscription ID to deploy into;
    - the Azure region;
    - the public IP address I will BROWSE the demo from. This is frequently NOT the machine
-     running the deployment. If they differ, pass `--admin-cidr` twice so both are allowed.
+     running the deployment. If they differ, pass `--admin-cidr` twice so both are allowed;
+   - whether I want an Azure SRE Agent created as part of the deployment. If yes, add
+     `--with-agent`, and ask which mode: ReadOnly, Review (default, pauses for approval) or
+     Autonomous. The agent is chargeable, so never add this flag unless I ask for it.
 
 4. Before deploying, confirm the region can actually take it:
    - I need roughly 8 vCPU of headroom there;
@@ -219,6 +225,10 @@ Deploy the Azure SRE Agent demo lab into my own GitHub repository and Azure subs
      az vm list-skus --location <region> --resource-type virtualMachines \
        --query "[?name=='Standard_D2as_v7'].restrictions"
      Only restrictions of type "Location" block a deployment — zone-only restrictions do not.
+   - if I asked for an agent, check the region offers one. SRE Agent is NOT available in
+     eastus. deploy.sh validates this too, but tell me early:
+     az provider show -n Microsoft.App \
+       --query "resourceTypes[?resourceType=='agents'].locations[]"
    If the region is out of capacity, recommend a different region rather than retrying the
    same one.
 
@@ -369,17 +379,39 @@ limits.
 
 ## Azure SRE Agent setup
 
-See **[docs/AZURE-SRE-AGENT-SETUP.md](docs/AZURE-SRE-AGENT-SETUP.md)** for creating the agent,
-connecting this repository, granting scoped access to the demo resource group, verifying it can
-see Application Insights, Log Analytics, Azure Monitor and AKS diagnostics, and running the
-first investigation.
+The lab can create the agent for you. It is **opt-in**, because an agent is a chargeable
+managed service and is not offered in every region the rest of the lab runs in:
 
-Agent provisioning and GitHub connector consent are interactive in most tenants. The lab
-deploys completely without them and tells you precisely which step remains.
+```bash
+./scripts/deploy.sh --location eastus2 --with-agent --agent-mode Review
+```
 
-Permissions stay scoped to the demo resource group. The optional
-`enable-sre-remediation` workflow grants Contributor **at that resource group only** — never
-subscription-wide.
+| Flag | Purpose |
+|---|---|
+| `--with-agent` | Also create a `Microsoft.App/agents` resource. Omitted, nothing is created and nothing changes. |
+| `--agent-mode` | `ReadOnly` investigates only, `Review` (default) pauses for human approval before each remediation, `Autonomous` acts unattended. |
+| `--agent-location` | Region for the agent when the lab region does not offer it. |
+
+SRE Agent is not available in every region — notably **not in `eastus`**, which is the
+default lab region. `deploy.sh` checks this up front and lists the regions that do offer it
+rather than failing part-way through the deployment.
+
+The agent is created with a system-assigned identity and **no role assignments**. Deploying
+it does not grant it anything; access is a separate, deliberate step:
+
+```bash
+./scripts/enable-sre-remediation.sh --agent-principal-id <printed by deploy.sh>
+```
+
+See **[docs/AZURE-SRE-AGENT-SETUP.md](docs/AZURE-SRE-AGENT-SETUP.md)** for connecting this
+repository, granting scoped access, verifying the agent can see Application Insights, Log
+Analytics, Azure Monitor and AKS diagnostics, and running the first investigation.
+
+The GitHub connector consent is interactive in most tenants. The lab deploys completely
+without it and tells you precisely which step remains.
+
+Permissions stay scoped to the demo resource group. The optional `enable-sre-remediation`
+workflow grants Contributor **at that resource group only** — never subscription-wide.
 
 ---
 

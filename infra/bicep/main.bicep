@@ -76,6 +76,20 @@ param deployerObjectId string = ''
 @description('Create role assignments. Set false if the deploying principal lacks User Access Administrator; the deploy script then prints the equivalent commands.')
 param assignRoles bool = true
 
+@description('Also create an Azure SRE Agent. Off by default: it is a chargeable managed service and is not offered in every region the rest of the lab runs in.')
+param deploySreAgent bool = false
+
+@description('Region for the SRE Agent. Separate from the lab location because the two do not offer the same regions; deploy.sh validates this before submitting.')
+param sreAgentLocation string = location
+
+@description('How the agent may act. Review pauses for human approval before every remediation.')
+@allowed([
+  'ReadOnly'
+  'Review'
+  'Autonomous'
+])
+param sreAgentMode string = 'Review'
+
 @description('Log Analytics daily ingestion cap in GB. Protects demo cost.')
 param logAnalyticsDailyQuotaGb int = 2
 
@@ -209,6 +223,18 @@ module rbac 'modules/rbac.bicep' = if (assignRoles) {
   }
 }
 
+module sreAgent 'modules/sre-agent.bicep' = if (deploySreAgent) {
+  name: 'deploy-sre-agent'
+  params: {
+    name: 'sre-agent-${suffix}'
+    location: sreAgentLocation
+    mode: sreAgentMode
+    appInsightsAppId: monitoring.outputs.appInsightsAppId
+    appInsightsConnectionString: monitoring.outputs.appInsightsConnectionString
+    tags: tags
+  }
+}
+
 // --- Outputs consumed by scripts/deploy.sh ---------------------------------
 
 output location string = location
@@ -256,3 +282,10 @@ output aksSystemNodePoolName string = aks.outputs.systemNodePoolName
 output databaseNsgName string = network.outputs.databaseNsgName
 output vnetName string = network.outputs.vnetName
 output alertRuleNames array = alerts.outputs.alertRuleNames
+
+output sreAgentDeployed bool = deploySreAgent
+output sreAgentName string = sreAgent.?outputs.agentName ?? ''
+output sreAgentId string = sreAgent.?outputs.agentId ?? ''
+output sreAgentRegion string = sreAgent.?outputs.agentLocation ?? ''
+output sreAgentActionMode string = sreAgent.?outputs.agentMode ?? ''
+output sreAgentPrincipalId string = sreAgent.?outputs.principalId ?? ''
