@@ -72,7 +72,7 @@ so that "which files are largest" is a meaningful question.
 
 | Where | What you see |
 |---|---|
-| Scenario Controller | App VM card goes DEGRADED then UNHEALTHY; the sparkline climbs steeply |
+| Scenario Controller | App VM card goes DEGRADED then UNHEALTHY within seconds |
 | `df -h /var/sre-demo` | Use% rises to ~88% and stops |
 | Application Insights | `sre_demo_disk_percent_used` crosses 85 |
 | Log Analytics `Perf` | `% Used Space` for `/var/sre-demo` rises |

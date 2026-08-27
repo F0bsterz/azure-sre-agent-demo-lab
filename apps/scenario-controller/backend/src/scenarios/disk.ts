@@ -15,6 +15,8 @@
  */
 
 import { appendFileSync, mkdirSync, readdirSync, statSync, unlinkSync } from 'node:fs';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { config } from '../config.js';
@@ -24,7 +26,10 @@ import { telemetry, METRICS } from '../telemetry.js';
 import { BaseScenario } from './base.js';
 import type { ScenarioTelemetry, Severity, VerificationCheck, VerificationResult } from './types.js';
 
+const execFileAsync = promisify(execFile);
+
 const FILE_PREFIX = 'sre-demo-scenario-01-';
+const ARCHIVE_PREFIX = `${FILE_PREFIX}archive-`;
 const SERVICES = ['order-api', 'payment-gateway', 'inventory-sync', 'notification-worker'];
 const ENDPOINTS = ['/api/orders', '/api/payments', '/api/inventory/reserve', '/api/notifications/send'];
 const EXCEPTIONS = [
@@ -154,11 +159,36 @@ export class DiskCapacityScenario extends BaseScenario {
   protected async inject(): Promise<Record<string, unknown>> {
     mkdirSync(config.disk.logDir, { recursive: true });
     const before = await diskUsage();
+
+    // Stand in for months of unrotated logs. fallocate reserves the blocks
+    // without writing them, so this is effectively instantaneous and df
+    // reflects it immediately.
+    let ballastBytes = 0;
+    const ballastTarget = Math.min(config.disk.ballastPercent, this.ceiling() - 5);
+    if (before.percentUsed < ballastTarget) {
+      const usable = before.usedBytes + before.freeBytes;
+      ballastBytes = Math.max(0, Math.floor((ballastTarget / 100) * usable) - before.usedBytes);
+      if (ballastBytes > 0) {
+        const archivePath = join(config.disk.logDir, `${ARCHIVE_PREFIX}${Date.now()}.log`);
+        try {
+          await execFileAsync('fallocate', ['-l', String(ballastBytes), archivePath]);
+        } catch (error) {
+          log.warn('fallocate unavailable, falling back to written ballast', {
+            error: error instanceof Error ? error.message : String(error),
+          });
+          ballastBytes = 0;
+        }
+      }
+    }
+
     this.startWriter();
+    const after = await diskUsage();
     return {
       logDirectory: config.disk.logDir,
       targetPercent: this.ceiling(),
       startingPercentUsed: before.percentUsed,
+      archiveBytes: ballastBytes,
+      percentUsedAfterArchive: after.percentUsed,
     };
   }
 

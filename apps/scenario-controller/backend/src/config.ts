@@ -84,8 +84,16 @@ export const config = {
     targetPercent: int('DISK_SCENARIO_TARGET_PERCENT', 88),
     /** Absolute safety net regardless of configuration. */
     maxPercent: 92,
-    chunkBytes: int('DISK_SCENARIO_CHUNK_BYTES', 4 * 1024 * 1024),
-    writeIntervalMs: int('DISK_SCENARIO_INTERVAL_MS', 700),
+    /**
+     * Represents historic logs that were never rotated. Allocated instantly, so
+     * the disk starts the incident already under pressure and the runaway
+     * logger only has to write the remainder — which is what keeps the scenario
+     * inside a demo-length window instead of the ~40 minutes a full 16 GB fill
+     * would take at disk throughput.
+     */
+    ballastPercent: int('DISK_SCENARIO_BALLAST_PERCENT', 75),
+    chunkBytes: int('DISK_SCENARIO_CHUNK_BYTES', 16 * 1024 * 1024),
+    writeIntervalMs: int('DISK_SCENARIO_INTERVAL_MS', 250),
   },
 
   aks: {
