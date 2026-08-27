@@ -74,7 +74,6 @@ if [[ "${CIDR}" == "0.0.0.0/0" && "${REVOKE}" != "true" ]]; then
   confirm "Really allow the whole Internet?" || die "Cancelled."
 fi
 
-NSG="nsg-app-${SUFFIX}"
 
 # --- App VM NSG -------------------------------------------------------------
 
@@ -134,8 +133,17 @@ update_rule() {
 }
 
 step "$([[ "${REVOKE}" == "true" ]] && echo Revoking || echo Granting) ${CIDR} on the App VM"
+NSG="nsg-app-${SUFFIX}"
 update_rule Allow-SSH-Admin 22 200 "Administrative SSH, restricted to the administrator CIDR."
 update_rule Allow-Controller-UI-Admin 8080 210 "Scenario Controller UI and API, restricted to the administrator CIDR."
+
+# Magic 8 Ball sits behind TWO independent gates. AKS maintains its own NSG rule
+# in the node resource group from the Service's loadBalancerSourceRanges, but the
+# custom NSG on the AKS subnet has a separate rule that must be updated too.
+# Missing this one produces the confusing symptom of a request that simply hangs.
+step "$([[ "${REVOKE}" == "true" ]] && echo Revoking || echo Granting) ${CIDR} on the AKS subnet"
+NSG="nsg-aks-${SUFFIX}"
+update_rule Allow-Magic8Ball-From-Admin 80 200 "HTTP/HTTPS to Magic 8 Ball, restricted to the administrator CIDR."
 
 # --- Magic 8 Ball load balancer --------------------------------------------
 
