@@ -191,6 +191,10 @@ if [[ -n "${LAW_GUID}" ]]; then
   # The REST API rather than `az monitor log-analytics query`: the CLI extension
   # loads slowly enough to exceed any sensible timeout, which previously made
   # healthy telemetry look like a failure.
+  #
+  # KQL string literals below must be SINGLE quoted. The query is embedded in a
+  # JSON body, so a double quote would close the JSON string and produce a
+  # malformed request that also reads as "no telemetry".
   la_count() {
     timeout 45 az rest --method post \
       --url "https://api.loganalytics.io/v1/workspaces/${LAW_GUID}/query" \
@@ -204,11 +208,11 @@ if [[ -n "${LAW_GUID}" ]]; then
     "$([[ "${ROWS}" != "0" ]] && echo true || echo false)" \
     "${ROWS} row(s) in the last 30 minutes (allow 5-10 min after deployment)"
 
-  CUSTOM="$(la_count 'AppMetrics | where TimeGenerated > ago(30m) | where Name startswith "sre_demo_" | count')"
+  CUSTOM="$(la_count "AppMetrics | where TimeGenerated > ago(30m) | where Name startswith 'sre_demo_' | count")"
   report "Custom sre_demo_ metrics present" \
     "$([[ "${CUSTOM}" != "0" ]] && echo true || echo false)" "${CUSTOM} row(s)"
 
-  CROWS="$(la_count 'KubePodInventory | where TimeGenerated > ago(30m) | where Namespace == "sre-demo" | count')"
+  CROWS="$(la_count "KubePodInventory | where TimeGenerated > ago(30m) | where Namespace == 'sre-demo' | count")"
   report "Container Insights collecting AKS data" \
     "$([[ "${CROWS}" != "0" ]] && echo true || echo false)" \
     "${CROWS} row(s) (Container Insights can take 10-15 min on a new cluster)"
@@ -216,7 +220,7 @@ else
   skip "Log Analytics queries (workspace unknown)"
 fi
 
-ALERT_COUNT="$(az monitor scheduled-query list -g "${RESOURCE_GROUP}" --query "length(@)" -o tsv 2>/dev/null || echo 0)"
+ALERT_COUNT="$(az rest --method get --url "https://management.azure.com/subscriptions/$(state_get subscriptionId)/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.Insights/scheduledQueryRules?api-version=2022-06-15" -o json 2>/dev/null | jq -r ".value | length" 2>/dev/null || echo 0)"
 report "Azure Monitor alert rules created" "$([[ "${ALERT_COUNT}" -ge 6 ]] && echo true || echo false)" "${ALERT_COUNT} rule(s)"
 
 # --- Summary ----------------------------------------------------------------
