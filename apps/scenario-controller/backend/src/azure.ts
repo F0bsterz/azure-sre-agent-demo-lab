@@ -110,10 +110,14 @@ export async function getDenyRule(): Promise<NsgRuleState> {
  * untouched, which is what keeps the lab resettable while the fault is active.
  */
 export async function createDenyRule(): Promise<void> {
+  // Azure rejects NSG rule descriptions longer than 140 characters.
+  const description = 'SRE demo scenario 05: denies TCP 5432 from the app and AKS subnets. Removed on reset.'.slice(
+    0,
+    140,
+  );
   await arm('PUT', denyRulePath(), NETWORK_API, {
     properties: {
-      description:
-        'SRE demo scenario 05. Blocks PostgreSQL (TCP 5432) from the application and AKS subnets. Injected by the Scenario Controller; removed on reset.',
+      description,
       protocol: 'Tcp',
       sourcePortRange: '*',
       destinationPortRange: '5432',
