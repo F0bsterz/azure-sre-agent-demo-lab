@@ -165,9 +165,9 @@
   <g filter="url(#sh)"><rect x="686" y="906" width="266" height="120" rx="11" fill="#FFFFFF" stroke="#5B6B7B" stroke-width="1.4"/></g>
   <g transform="translate(706,930)"><circle cx="10" cy="10" r="9" fill="none" stroke="#5B6B7B" stroke-width="3"/><path d="M16,16 l12,12 l-4,4 l-4,-4 l-2,2 l-3,-3 l2,-2 z" fill="#5B6B7B"/></g>
   <text x="750" y="938" class="chipt">Key Vault</text>
-  <text x="750" y="962" class="meta">Secrets &amp; certs read</text>
-  <text x="750" y="982" class="meta">by App VM</text>
-  <text x="750" y="1005" class="meta">(cert-swap scenarios)</text>
+<text x="750" y="962" class="meta">Optional secret store</text>
+<text x="750" y="982" class="meta">for App VM</text>
+<text x="750" y="1005" class="meta">(not in fault path)</text>
 
   <g filter="url(#sh)"><rect x="968" y="906" width="268" height="120" rx="11" fill="#FFFFFF" stroke="#0A8F8F" stroke-width="1.6"/></g>
   <g transform="translate(988,930)"><circle cx="15" cy="10" r="9" fill="none" stroke="#0A8F8F" stroke-width="3"/><path d="M2,34 a13,12 0 0 1 26,0" fill="none" stroke="#0A8F8F" stroke-width="3"/></g>
@@ -197,7 +197,7 @@
   <text x="1510" y="392" class="meta" text-anchor="middle">Central query + correlation store</text>
 
   <g filter="url(#sh)"><rect x="1360" y="452" width="300" height="92" rx="10" fill="#FFFFFF" stroke="#C0392B" stroke-width="1.6"/></g>
-  <text x="1510" y="482" class="chipt" fill="#8E241A" text-anchor="middle">6 scheduled query alert rules</text>
+  <text x="1510" y="482" class="chipt" fill="#8E241A" text-anchor="middle">7 scheduled query alert rules</text>
   <text x="1510" y="508" class="meta" text-anchor="middle">Detect disk pressure, burn, cert &amp;</text>
   <text x="1510" y="525" class="meta" text-anchor="middle">availability faults → fire signals</text>
 

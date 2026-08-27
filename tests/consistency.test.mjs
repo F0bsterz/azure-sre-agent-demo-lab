@@ -263,3 +263,24 @@ test('administrator access is a list and deploy prompts rather than assuming', (
     'deploy.sh must reconcile the admin NSG rules after deployment',
   );
 });
+
+test('the architecture diagram and docs state the real number of alert rules', () => {
+  const declared = (read('infra/bicep/modules/alerts.bicep').match(/key: '/g) ?? []).length;
+  assert.ok(declared > 0, 'expected alerts.bicep to declare at least one rule');
+
+  for (const path of [
+    'docs/sre-demo-architecture.svg',
+    'README.md',
+    'docs/ARCHITECTURE.md',
+  ]) {
+    const claims = [...read(path).matchAll(/(\d+)\s+scheduled query (?:alert )?rules/g)];
+    assert.ok(claims.length > 0, `${path} should state the alert rule count`);
+    for (const [, claimed] of claims) {
+      assert.equal(
+        Number(claimed),
+        declared,
+        `${path} claims ${claimed} alert rules but alerts.bicep declares ${declared}`,
+      );
+    }
+  }
+});

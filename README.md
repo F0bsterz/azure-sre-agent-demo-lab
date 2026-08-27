@@ -57,6 +57,13 @@ themselves, or use to train an on-call team.
 
 ## Architecture
 
+![Azure SRE Agent demo lab architecture](docs/sre-demo-architecture.svg)
+
+<sub>Also available as [PNG](docs/sre-demo-architecture.png) for slide decks.</sub>
+
+<details>
+<summary>Logical view (Mermaid)</summary>
+
 ```mermaid
 flowchart TB
     subgraph internet ["Internet — restricted to ADMIN_CIDR"]
@@ -89,7 +96,7 @@ flowchart TB
         law["Log Analytics workspace"]
         appi["Application Insights"]
         ci["Container Insights"]
-        alerts["6 scheduled query alert rules"]
+        alerts["7 scheduled query alert rules"]
     end
 
     operator -->|"HTTP 8080"| appvm
@@ -112,6 +119,7 @@ flowchart TB
     alerts --> agent
     agent -->|"investigate · remediate"| rg
 ```
+</details>
 
 **Design decisions worth knowing before you read the code:**
 
@@ -201,7 +209,7 @@ Verify everything:
 | Application Insights | Workspace-based | Application requests, dependencies, exceptions, custom metrics. |
 | Key Vault | Standard, RBAC | Generated database and runner credentials. |
 | Managed identity | User-assigned | Contributor on **this resource group only**. |
-| Alert rules | 6 scheduled query rules | One per scenario, 5-minute evaluation. |
+| Alert rules | 7 scheduled query rules | One per scenario; scenario 02 has two (node pressure + pending pods). 5-minute evaluation. |
 
 Every resource is tagged `project=azure-sre-agent-demo`, `environment=demo`,
 `managedBy=bicep`, `purpose=sre-training`.

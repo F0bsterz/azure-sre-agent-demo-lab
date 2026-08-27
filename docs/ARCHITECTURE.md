@@ -25,6 +25,10 @@ Everything below follows from five constraints:
 
 ## Component topology
 
+![Azure SRE Agent demo lab architecture](sre-demo-architecture.svg)
+
+The same topology as a diffable diagram:
+
 ```mermaid
 flowchart TB
     subgraph rg ["rg-sre-demo-&lt;suffix&gt; — every resource tagged project=azure-sre-agent-demo"]
@@ -47,7 +51,7 @@ flowchart TB
         mi["User-assigned identity"]
         law["Log Analytics<br/>2 GB/day cap"]
         appi["Application Insights<br/>workspace-based"]
-        rules["6 scheduled query alert rules"]
+        rules["7 scheduled query alert rules"]
     end
 
     vm1 -->|"pg 5432"| vm2
