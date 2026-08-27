@@ -192,6 +192,55 @@ Verify everything:
 ./scripts/validate.sh
 ```
 
+### Deploying it with GitHub Copilot
+
+If you would rather have an agent drive it, paste the prompt below into Copilot Chat
+(agent mode), the GitHub Copilot coding agent, or Copilot CLI. It is written to make the
+agent ask you for the things it genuinely cannot know, and to stop rather than guess.
+
+```text
+Deploy the Azure SRE Agent demo lab into my own GitHub repository and Azure subscription.
+
+1. Fork https://github.com/F0bsterz/azure-sre-agent-demo-lab into my account as a PRIVATE
+   repository, clone it locally, and work on `main`.
+
+2. Check my prerequisites first and tell me what is missing instead of installing things
+   silently: Azure CLI 2.60+ already logged in via `az login`, plus `jq`, `openssl` 3.0+,
+   `kubectl`, `git` and Bash. Docker is NOT required — images are built in Azure with
+   `az acr build`.
+
+3. Ask me for these and do not guess any of them:
+   - the Azure subscription ID to deploy into;
+   - the Azure region;
+   - the public IP address I will BROWSE the demo from. This is frequently NOT the machine
+     running the deployment. If they differ, pass `--admin-cidr` twice so both are allowed.
+
+4. Before deploying, confirm the region can actually take it:
+   - I need roughly 8 vCPU of headroom there;
+   - check the AKS node SKU is available:
+     az vm list-skus --location <region> --resource-type virtualMachines \
+       --query "[?name=='Standard_D2as_v7'].restrictions"
+     Only restrictions of type "Location" block a deployment — zone-only restrictions do not.
+   If the region is out of capacity, recommend a different region rather than retrying the
+   same one.
+
+5. Deploy, and stream the log so I can watch it:
+     ./scripts/deploy.sh --subscription <id> --location <region> --admin-cidr <my-ip>/32
+   It is long-running and idempotent — if it is interrupted, just run it again. While it is
+   running, do NOT edit anything under scripts/: bash reads a script lazily as it executes,
+   so editing a running script makes it run garbage.
+
+6. When it completes, run ./scripts/validate.sh and show me the output. Report any failure
+   honestly and diagnose it — do not re-run until it happens to look green.
+
+7. Finally, print the Scenario Controller and Magic 8 Ball URLs from .lab-state.json, and
+   remind me that this lab creates real, billed Azure resources and that
+   ./scripts/destroy-lab.sh removes them when I am finished.
+
+Connecting the Azure SRE Agent itself is interactive and cannot be scripted end to end —
+point me at docs/AZURE-SRE-AGENT-SETUP.md when the lab is up.
+```
+
 ---
 
 ## Azure resources
