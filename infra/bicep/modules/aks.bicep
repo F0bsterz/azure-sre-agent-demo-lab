@@ -42,6 +42,9 @@ param kubernetesVersion string = ''
 @maxValue(256)
 param nodeOsDiskSizeGb int = 64
 
+@description('Resource ID of the Container Insights data collection rule.')
+param containerInsightsRuleId string
+
 var clusterName = 'aks-sre-demo-${suffix}'
 
 resource aks 'Microsoft.ContainerService/managedClusters@2024-05-01' = {
@@ -114,6 +117,17 @@ resource aks 'Microsoft.ContainerService/managedClusters@2024-05-01' = {
         enabled: false
       }
     }
+  }
+}
+
+// Links the cluster to the Container Insights rule. The association must be
+// named ContainerInsightsExtension for the agent to pick it up.
+resource containerInsightsAssociation 'Microsoft.Insights/dataCollectionRuleAssociations@2022-06-01' = {
+  name: 'ContainerInsightsExtension'
+  scope: aks
+  properties: {
+    dataCollectionRuleId: containerInsightsRuleId
+    description: 'Sends Container Insights data to the lab Log Analytics workspace.'
   }
 }
 

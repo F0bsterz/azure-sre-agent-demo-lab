@@ -79,8 +79,11 @@ cannot fit it. Pods stay Pending and the customer-facing service slows down.
 
 **Inject.** Scenario card 02 → **Inject failure**.
 
-**What to watch.** Within a minute the AKS card shows pending pods and Magic 8 Ball latency
-rises. Ask a Magic 8 Ball question — the answer takes noticeably longer.
+**What to watch.** Within a minute the AKS card shows pending pods and node CPU
+reaches 95-100%. Two burner replicas schedule; four cannot. Magic 8 Ball keeps
+answering quickly — its workload is small enough that the scheduler still gives
+it what it asks for. That contrast is worth pointing out: the node is saturated
+and unable to place new work, while the application on it looks perfectly fine.
 
 **Prompt.**
 
@@ -108,8 +111,8 @@ az aks nodepool scale -g <rg> --cluster-name <aks> -n system --node-count 2
 
 Or press **Scale AKS to 2** on the card. Nodes take 2–4 minutes to join.
 
-**Verify recovery.** Pending pods schedule, node CPU falls, Magic 8 Ball latency returns to
-normal, health returns to **HEALTHY**.
+**Verify recovery.** Pending pods schedule, node CPU spreads across both nodes, and
+health returns to **HEALTHY**.
 
 **Recover.** **Reset** — removes the pressure workload and returns the pool to one node.
 

@@ -177,6 +177,7 @@ module aks 'modules/aks.bicep' = {
     nodeVmSize: aksNodeVmSize
     baselineNodeCount: aksBaselineNodeCount
     kubernetesVersion: kubernetesVersion
+    containerInsightsRuleId: monitoring.outputs.containerInsightsRuleId
   }
 }
 

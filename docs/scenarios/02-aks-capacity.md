@@ -73,11 +73,17 @@ activation and reset idempotent.
 
 | Where | What you see |
 |---|---|
-| Scenario Controller | AKS card DEGRADED, pending pod count > 0; Magic 8 Ball latency rises |
-| Magic 8 Ball UI | Answers take noticeably longer; the latency pill turns amber or red |
-| `kubectl get pods -n sre-demo` | Several `resource-burner-*` pods `Pending` |
+| Scenario Controller | AKS card DEGRADED, pending pod count > 0 |
+| `kubectl top node` | Node CPU at 95-100% |
+| `kubectl get pods -n sre-demo` | 2 `resource-burner-*` Running, 4 `Pending` |
 | `kubectl describe pod` | `FailedScheduling: 0/1 nodes are available: 1 Insufficient cpu` |
 | Container Insights | Node CPU approaching 100%, memory working set climbing |
+
+> Magic 8 Ball keeps answering, and quickly. Its own workload is tiny, so CFS
+> still gives it the slice it asks for. What degrades is the cluster's ability to
+> place *new* work — which is the honest lesson here: a saturated node does not
+> always look like a slow application, and "the app is fine" is not evidence that
+> the cluster is.
 
 ---
 
@@ -189,7 +195,7 @@ A new node takes 2–4 minutes to join and become Ready.
 |---|---|
 | Pending pods | 0 |
 | Node CPU | Below 80% |
-| Magic 8 Ball latency | Back under ~200 ms |
+| Magic 8 Ball replicas | 2/2 Ready |
 | Magic 8 Ball replicas | 2/2 Ready |
 | AKS card | HEALTHY |
 
@@ -230,8 +236,8 @@ does not silently leave a second node billing.
 | Limit | Value | Why |
 |---|---|---|
 | Maximum burner replicas | 8 (`MAX_BURNER_REPLICAS`) | Enforced by scenario-runner, whatever is requested |
-| CPU request / limit | 300m / 500m | Bounded contention; the node stays responsive |
-| Memory request / limit | 512Mi / 640Mi | Fixed allocation, no leak |
+| CPU request / limit | 100m / 900m | Two replicas fit; each is still capped below a full core |
+| Memory request / limit | 256Mi / 512Mi | Fixed allocation, no leak |
 | Namespace ResourceQuota | 4 CPU / 6Gi requests | Hard ceiling for everything in `sre-demo` |
 | LimitRange max per container | 1 CPU / 1Gi | No single container can request more |
 | PriorityClass | `sre-demo-low-priority`, value −10, preemption **Never** | The burner can never evict Magic 8 Ball or scenario-runner |

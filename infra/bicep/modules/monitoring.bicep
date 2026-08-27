@@ -156,6 +156,58 @@ resource vmDataCollectionRule 'Microsoft.Insights/dataCollectionRules@2022-06-01
   }
 }
 
+@description('Container Insights data collection rule.')
+// Enabling the omsagent addon through ARM does NOT create this rule, unlike
+// `az aks enable-addons`. With managed-identity auth the agent then runs
+// happily but has nowhere to send data, so KubePodInventory, ContainerLogV2 and
+// the K8SNode Perf counters all stay empty and the AKS alert rules can never
+// fire. The rule and its association below are what actually turn Container
+// Insights on.
+resource containerInsightsRule 'Microsoft.Insights/dataCollectionRules@2022-06-01' = {
+  name: 'dcr-sre-demo-ci-${suffix}'
+  location: location
+  tags: tags
+  kind: 'Linux'
+  properties: {
+    dataSources: {
+      extensions: [
+        {
+          name: 'ContainerInsightsExtension'
+          streams: [
+            'Microsoft-ContainerInsights-Group-Default'
+          ]
+          extensionName: 'ContainerInsights'
+          extensionSettings: {
+            dataCollectionSettings: {
+              interval: '1m'
+              namespaceFilteringMode: 'Off'
+              enableContainerLogV2: true
+            }
+          }
+        }
+      ]
+    }
+    destinations: {
+      logAnalytics: [
+        {
+          name: 'ciWorkspace'
+          workspaceResourceId: workspace.id
+        }
+      ]
+    }
+    dataFlows: [
+      {
+        streams: [
+          'Microsoft-ContainerInsights-Group-Default'
+        ]
+        destinations: [
+          'ciWorkspace'
+        ]
+      }
+    ]
+  }
+}
+
 output workspaceId string = workspace.id
 output workspaceName string = workspace.name
 output workspaceCustomerId string = workspace.properties.customerId
@@ -165,3 +217,4 @@ output appInsightsConnectionString string = appInsights.properties.ConnectionStr
 output appInsightsAppId string = appInsights.properties.AppId
 output dataCollectionRuleId string = vmDataCollectionRule.id
 output dataCollectionEndpointId string = dataCollectionEndpoint.id
+output containerInsightsRuleId string = containerInsightsRule.id

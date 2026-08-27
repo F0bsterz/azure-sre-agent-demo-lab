@@ -184,23 +184,34 @@ report "PostgreSQL has no public IP" "$([[ "${PG_PUBLIC_IP}" == "0" ]] && echo t
 # --- Telemetry --------------------------------------------------------------
 
 step "Telemetry"
-if [[ -n "${LAW_ID}" ]]; then
-  # Bounded: a slow or throttled workspace query must not hang validation.
-  la_query() {
-    timeout 60 az monitor log-analytics query --workspace "$1" \
-      --analytics-query "$2" -o json 2>/dev/null | jq -r '.[0].Count // 0' 2>/dev/null || echo 0
+LAW_GUID="$(az monitor log-analytics workspace show -g "${RESOURCE_GROUP}" \
+  -n "$(state_get logAnalyticsName)" --query customerId -o tsv 2>/dev/null || true)"
+
+if [[ -n "${LAW_GUID}" ]]; then
+  # The REST API rather than `az monitor log-analytics query`: the CLI extension
+  # loads slowly enough to exceed any sensible timeout, which previously made
+  # healthy telemetry look like a failure.
+  la_count() {
+    timeout 45 az rest --method post \
+      --url "https://api.loganalytics.io/v1/workspaces/${LAW_GUID}/query" \
+      --resource "https://api.loganalytics.io" \
+      --body "{\"query\":\"$1\"}" -o json 2>/dev/null \
+      | jq -r '.tables[0].rows[0][0] // 0' 2>/dev/null || echo 0
   }
 
-  QUERY='union isfuzzy=true AppMetrics, AppRequests, AppDependencies | where TimeGenerated > ago(30m) | count'
-  ROWS="$(la_query "${LAW_ID}" "${QUERY}")"
+  ROWS="$(la_count 'union isfuzzy=true AppMetrics, AppRequests, AppDependencies | where TimeGenerated > ago(30m) | count')"
   report "Application telemetry reaching Log Analytics" \
     "$([[ "${ROWS}" != "0" ]] && echo true || echo false)" \
     "${ROWS} row(s) in the last 30 minutes (allow 5-10 min after deployment)"
 
-  CONTAINER_QUERY='KubePodInventory | where TimeGenerated > ago(30m) | where Namespace == "sre-demo" | count'
-  CROWS="$(la_query "${LAW_ID}" "${CONTAINER_QUERY}")"
+  CUSTOM="$(la_count 'AppMetrics | where TimeGenerated > ago(30m) | where Name startswith "sre_demo_" | count')"
+  report "Custom sre_demo_ metrics present" \
+    "$([[ "${CUSTOM}" != "0" ]] && echo true || echo false)" "${CUSTOM} row(s)"
+
+  CROWS="$(la_count 'KubePodInventory | where TimeGenerated > ago(30m) | where Namespace == "sre-demo" | count')"
   report "Container Insights collecting AKS data" \
-    "$([[ "${CROWS}" != "0" ]] && echo true || echo false)" "${CROWS} row(s)"
+    "$([[ "${CROWS}" != "0" ]] && echo true || echo false)" \
+    "${CROWS} row(s) (Container Insights can take 10-15 min on a new cluster)"
 else
   skip "Log Analytics queries (workspace unknown)"
 fi

@@ -290,7 +290,7 @@ GET  /api/history    Recent questions and answers
 | # | Scenario | Component | What actually breaks | Expected remediation |
 |---|---|---|---|---|
 | 01 | [Disk capacity exhaustion](docs/scenarios/01-disk-exhaustion.md) | App VM | A retry storm floods `/var/sre-demo/logs` to ~88% | Stop the logger, remove the log files |
-| 02 | [AKS resource exhaustion](docs/scenarios/02-aks-capacity.md) | AKS | Pods go Pending, node CPU saturates, Magic 8 Ball slows | Scale the node pool 1 → 2 |
+| 02 | [AKS resource exhaustion](docs/scenarios/02-aks-capacity.md) | AKS | Node CPU saturates at ~98% and 4 of 6 pods cannot be scheduled | Scale the node pool 1 → 2 |
 | 03 | [Bad deployment](docs/scenarios/03-bad-deployment.md) | AKS | A regressed image returns ~42% HTTP 500 and 3–5s latency | Roll back to the stable image |
 | 04 | [Database connection exhaustion](docs/scenarios/04-postgres-connections.md) | PostgreSQL | Leaked sessions approach `max_connections` | Terminate the leaked sessions, fix pooling |
 | 05 | [Network / NSG failure](docs/scenarios/05-network-nsg.md) | Networking | An NSG rule blocks TCP 5432 only | Remove `sre-demo-deny-postgres` |
