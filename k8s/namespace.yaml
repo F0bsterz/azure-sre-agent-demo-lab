@@ -31,7 +31,10 @@ spec:
     limits.cpu: "8"
     limits.memory: 8Gi
     pods: "30"
-    services.loadbalancers: "2"
+    # Three are required: the public Magic 8 Ball frontend, its internal
+    # counterpart used by the controller's probes, and the internal
+    # scenario-runner endpoint.
+    services.loadbalancers: "4"
 ---
 apiVersion: v1
 kind: LimitRange
