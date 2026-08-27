@@ -1,0 +1,138 @@
+# -----------------------------------------------------------------------------
+# Magic 8 Ball workload.
+#
+# Placeholders (__NAME__) are substituted by scripts/deploy.sh from live Bicep
+# outputs, so nothing here is tied to a subscription, registry or address.
+#
+# The TLS secret is mounted rather than baked in, which is what lets scenario 06
+# swap the certificate without rebuilding the image.
+# -----------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: magic8ball
+  namespace: sre-demo
+  labels:
+    app: magic8ball
+    project: azure-sre-agent-demo
+  annotations:
+    sre-demo/variant: stable
+spec:
+  replicas: 2
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: magic8ball
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: magic8ball
+        project: azure-sre-agent-demo
+      annotations:
+        sre-demo/variant: stable
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: magic8ball
+          image: __MAGIC8BALL_STABLE_IMAGE__
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: https
+              containerPort: 8443
+          env:
+            - name: LAB_SUFFIX
+              value: "__LAB_SUFFIX__"
+            - name: PGHOST
+              value: "__POSTGRES_HOST__"
+            - name: PGDATABASE
+              value: "__POSTGRES_DB__"
+            - name: PGUSER
+              value: "__POSTGRES_USER__"
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: magic8ball-db
+                  key: password
+            - name: APPLICATIONINSIGHTS_CONNECTION_STRING
+              valueFrom:
+                secretKeyRef:
+                  name: magic8ball-telemetry
+                  key: connectionString
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          # Liveness uses the plain HTTP endpoint on purpose: during scenario 06
+          # HTTPS is broken but the application is healthy, and restarting pods
+          # would destroy exactly the evidence the investigation needs.
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tls
+              mountPath: /etc/magic8ball/tls
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tls
+          secret:
+            secretName: magic8ball-tls
+            optional: true
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: magic8ball
+  namespace: sre-demo
+  labels:
+    app: magic8ball
+spec:
+  type: LoadBalancer
+  # Restricted to the administrator CIDR by default rather than the Internet.
+  loadBalancerSourceRanges:
+    - __ADMIN_CIDR__
+  selector:
+    app: magic8ball
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+      protocol: TCP
+    - name: https
+      port: 443
+      targetPort: 8443
+      protocol: TCP

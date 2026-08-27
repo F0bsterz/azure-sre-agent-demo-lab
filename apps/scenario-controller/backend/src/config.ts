@@ -6,6 +6,8 @@
  * resource identifiers, so the same image runs unchanged in any subscription.
  */
 
+import { readFileSync } from 'node:fs';
+
 function str(name: string, fallback = ''): string {
   const value = process.env[name];
   return value === undefined || value === '' ? fallback : value;
@@ -20,6 +22,23 @@ function bool(name: string, fallback: boolean): boolean {
   const value = process.env[name];
   if (value === undefined || value === '') return fallback;
   return ['1', 'true', 'yes', 'on'].includes(value.toLowerCase());
+}
+
+/**
+ * PEM material is supplied as a mounted file rather than an environment
+ * variable: multi-line values do not survive `docker run -e` or an env file
+ * cleanly. DEMO_CA_CERT remains supported for local development.
+ */
+function pem(fileVar: string, inlineVar: string): string {
+  const path = process.env[fileVar];
+  if (path) {
+    try {
+      return readFileSync(path, 'utf8');
+    } catch {
+      return '';
+    }
+  }
+  return str(inlineVar);
 }
 
 export const config = {
@@ -95,7 +114,7 @@ export const config = {
     httpUrl: str('MAGIC8BALL_HTTP_URL'),
     httpsUrl: str('MAGIC8BALL_HTTPS_URL'),
     /** PEM of the demo CA so a TLS failure is attributable to expiry, not to an unknown issuer. */
-    caCertificate: str('DEMO_CA_CERT'),
+    caCertificate: pem('DEMO_CA_CERT_FILE', 'DEMO_CA_CERT'),
     stableImage: str('MAGIC8BALL_STABLE_IMAGE'),
     badImage: str('MAGIC8BALL_BAD_IMAGE'),
   },

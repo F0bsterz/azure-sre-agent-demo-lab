@@ -147,47 +147,117 @@ fi
 
 APP_VM_SIZE="${APP_VM_SIZE:-Standard_B2s}"
 POSTGRES_VM_SIZE="${POSTGRES_VM_SIZE:-Standard_B2s}"
-AKS_NODE_SIZE="${AKS_NODE_SIZE:-Standard_D2as_v5}"
+AKS_NODE_SIZE="${AKS_NODE_SIZE:-Standard_D2as_v7}"
 AKS_BASELINE_NODE_COUNT="${AKS_BASELINE_NODE_COUNT:-1}"
 
 step "7/20  Validating VM SKU availability and quota"
 
+# The SKU catalogue is large and the call is slow (~60s), so it is fetched ONCE
+# and queried locally. --all is required: without it, SKUs that are restricted
+# for this subscription are omitted entirely rather than returned with their
+# restriction reason, which makes "unavailable" indistinguishable from
+# "does not exist".
+SKU_CACHE="$(mktemp)"
+info "Fetching the VM SKU catalogue for ${LOCATION} (this takes up to a minute)"
+if ! az vm list-skus --location "${LOCATION}" --resource-type virtualMachines --all -o json \
+     > "${SKU_CACHE}" 2>/dev/null; then
+  echo '[]' > "${SKU_CACHE}"
+  warn "Could not read the SKU catalogue; skipping availability checks"
+fi
+
+# Only Location-type restrictions actually block a deployment. A Zone-type
+# restriction means the SKU is unavailable in specific availability zones but is
+# perfectly usable regionally — and this lab pins no zones, so treating those as
+# blocking would reject working SKUs (Standard_B2s in several regions, for
+# example).
 sku_available() {
   local sku="$1"
-  local restrictions
-  restrictions="$(az vm list-skus --location "${LOCATION}" --resource-type virtualMachines \
-    --query "[?name=='${sku}'] | [0].restrictions" -o json 2>/dev/null || echo 'null')"
-  [[ "${restrictions}" == "null" || -z "${restrictions}" ]] && return 1
-  [[ "${restrictions}" == "[]" ]]
+  jq -e --arg n "${sku}" '
+    any(.[];
+      .name == $n
+      and ([.restrictions[]? | select(.type == "Location")] | length) == 0)
+  ' "${SKU_CACHE}" >/dev/null 2>&1
 }
 
-# Preferred D-series first, then documented fallbacks. B-series is deliberately
-# excluded for AKS: burstable credits make capacity behaviour unpredictable,
-# which would make scenario 02 inconsistent to demonstrate.
-AKS_SKU_CANDIDATES=("${AKS_NODE_SIZE}" Standard_D2as_v5 Standard_D2s_v5 Standard_D2ads_v5 Standard_D2s_v4 Standard_D2as_v4 Standard_DS2_v2)
+sku_restriction() {
+  local sku="$1"
+  jq -r --arg n "${sku}" '
+    first(.[] | select(.name == $n)
+      | [.restrictions[]? | "\(.type):\(.reasonCode)"] | unique | join(", "))
+    // "not offered in this region"
+  ' "${SKU_CACHE}" 2>/dev/null
+}
+
+sku_family() {
+  local sku="$1"
+  jq -r --arg n "${sku}" 'first(.[] | select(.name == $n) | .family) // empty' "${SKU_CACHE}" 2>/dev/null
+}
+
+# v7 D-series first: current generation, widely available and the cheapest
+# 2 vCPU / 8 GB option. Older generations follow as fallbacks for regions or
+# subscriptions where v7 is not yet offered.
+#
+# B-series is deliberately excluded for AKS: burstable CPU credits make capacity
+# behaviour non-deterministic, which would make scenario 02 inconsistent to
+# demonstrate.
+AKS_SKU_CANDIDATES=(
+  "${AKS_NODE_SIZE}"
+  Standard_D2as_v7 Standard_D2s_v7 Standard_D2ads_v7 Standard_D2ds_v7
+  Standard_D2as_v6 Standard_D2s_v6
+  Standard_D2as_v5 Standard_D2s_v5 Standard_D2ads_v5
+  Standard_D2s_v4 Standard_D2as_v4 Standard_DS2_v2
+)
 SELECTED_AKS_SKU=""
 for candidate in "${AKS_SKU_CANDIDATES[@]}"; do
+  [[ -n "${candidate}" ]] || continue
   if sku_available "${candidate}"; then
     SELECTED_AKS_SKU="${candidate}"
     break
   fi
-  info "SKU ${candidate} is unavailable or restricted in ${LOCATION}"
+  info "SKU ${candidate} unavailable in ${LOCATION}: $(sku_restriction "${candidate}")"
 done
-[[ -n "${SELECTED_AKS_SKU}" ]] || die "No suitable AKS node SKU is available in ${LOCATION}. Try another region."
+[[ -n "${SELECTED_AKS_SKU}" ]] || die "No suitable AKS node SKU is available in ${LOCATION}. Try another region with --location."
 if [[ "${SELECTED_AKS_SKU}" != "${AKS_NODE_SIZE}" ]]; then
-  warn "Substituting AKS node SKU ${AKS_NODE_SIZE} -> ${SELECTED_AKS_SKU} (regional availability)"
+  warn "Substituting AKS node SKU ${AKS_NODE_SIZE} -> ${SELECTED_AKS_SKU} (regional/subscription availability)"
 else
   ok "AKS node SKU ${SELECTED_AKS_SKU} is available"
 fi
 
 for candidate in "${APP_VM_SIZE}" "${POSTGRES_VM_SIZE}"; do
-  sku_available "${candidate}" || warn "SKU ${candidate} may be restricted in ${LOCATION}; deployment could fail"
+  sku_available "${candidate}" \
+    || warn "SKU ${candidate} may be unavailable in ${LOCATION}: $(sku_restriction "${candidate}")"
 done
 
-# Total regional vCPU headroom. The lab needs 4 (two B2s) + 2 per AKS node,
-# plus 2 more if scenario 02 is remediated by scaling to a second node.
-REQUIRED_VCPUS=$(( 4 + 2 * AKS_BASELINE_NODE_COUNT + 2 ))
+# Per-family quota matters as much as the regional total: a family limit of zero
+# fails the deployment even when plenty of regional cores remain.
 USAGE_JSON="$(az vm list-usage --location "${LOCATION}" -o json 2>/dev/null || echo '[]')"
+family_headroom() {
+  local family="$1"
+  echo "${USAGE_JSON}" | jq -r --arg f "${family}" \
+    '[.[] | select((.name.value | ascii_downcase) == ($f | ascii_downcase))][0]
+     | if . == null then "unknown" else ((.limit // 0) - (.currentValue // 0) | tostring) end'
+}
+
+AKS_FAMILY="$(sku_family "${SELECTED_AKS_SKU}")"
+AKS_VCPUS_NEEDED=$(( 2 * AKS_BASELINE_NODE_COUNT + 2 ))   # +2 for the scenario 02 scale-out
+if [[ -n "${AKS_FAMILY}" ]]; then
+  HEADROOM="$(family_headroom "${AKS_FAMILY}")"
+  if [[ "${HEADROOM}" != "unknown" ]] && (( HEADROOM < AKS_VCPUS_NEEDED )); then
+    fail "${AKS_FAMILY} quota is insufficient: ${HEADROOM} vCPU available, ${AKS_VCPUS_NEEDED} required."
+    die "Request a quota increase for ${AKS_FAMILY} in ${LOCATION}, or deploy to another region."
+  fi
+  ok "${AKS_FAMILY}: ${HEADROOM} vCPU available, ${AKS_VCPUS_NEEDED} required"
+fi
+
+B_HEADROOM="$(family_headroom standardBSFamily)"
+if [[ "${B_HEADROOM}" != "unknown" ]] && (( B_HEADROOM < 4 )); then
+  fail "standardBSFamily quota is insufficient: ${B_HEADROOM} vCPU available, 4 required for the two lab VMs."
+  die "Request a quota increase, or override APP_VM_SIZE and POSTGRES_VM_SIZE in .env."
+fi
+ok "standardBSFamily: ${B_HEADROOM} vCPU available, 4 required"
+
+# Total regional vCPU headroom across all families.
+REQUIRED_VCPUS=$(( 4 + AKS_VCPUS_NEEDED ))
 TOTAL_LIMIT="$(echo "${USAGE_JSON}" | jq -r '[.[] | select(.name.value=="cores")][0].limit // 0')"
 TOTAL_USED="$(echo "${USAGE_JSON}" | jq -r '[.[] | select(.name.value=="cores")][0].currentValue // 0')"
 if [[ "${TOTAL_LIMIT}" != "0" ]]; then
@@ -198,8 +268,10 @@ if [[ "${TOTAL_LIMIT}" != "0" ]]; then
   fi
   ok "Regional vCPU quota: ${AVAILABLE} available, ${REQUIRED_VCPUS} required"
 else
-  warn "Could not read vCPU quota; continuing"
+  warn "Could not read regional vCPU quota; continuing"
 fi
+
+rm -f "${SKU_CACHE}"
 
 # --- 8. Naming --------------------------------------------------------------
 

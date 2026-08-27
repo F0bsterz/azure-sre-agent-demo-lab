@@ -45,7 +45,7 @@ param appVmSize string = 'Standard_B2s'
 param postgresVmSize string = 'Standard_B2s'
 
 @description('AKS system node pool VM size. The deploy script validates regional availability first.')
-param aksNodeVmSize string = 'Standard_D2as_v5'
+param aksNodeVmSize string = 'Standard_D2as_v7'
 
 @description('Baseline AKS node count. Scenario 02 is remediated by scaling above this value.')
 @minValue(1)

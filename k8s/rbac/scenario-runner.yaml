@@ -1,0 +1,87 @@
+# -----------------------------------------------------------------------------
+# RBAC for scenario-runner.
+#
+# Namespace-scoped Role, not cluster-admin. The verbs are exactly what the
+# runner's three operations need:
+#   * patch deployments  — scale the burner, swap the image, trigger restarts
+#   * get/patch secrets  — swap the TLS certificate pair
+#   * list/get pods      — report scheduling state back to the controller
+#
+# Reading node capacity does require a cluster-scoped read, because Nodes are
+# not namespaced. That is granted as a separate, strictly read-only
+# ClusterRole — the runner can see node capacity but cannot modify anything
+# outside the sre-demo namespace.
+# -----------------------------------------------------------------------------
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: scenario-runner
+  namespace: sre-demo
+  labels:
+    app: scenario-runner
+automountServiceAccountToken: true
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: scenario-runner
+  namespace: sre-demo
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "patch", "update"]
+  - apiGroups: ["apps"]
+    resources: ["replicasets"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames:
+      - magic8ball-tls
+      - magic8ball-tls-valid
+      - magic8ball-tls-expired
+    verbs: ["get", "patch", "update"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: scenario-runner
+  namespace: sre-demo
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: scenario-runner
+subjects:
+  - kind: ServiceAccount
+    name: scenario-runner
+    namespace: sre-demo
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: sre-demo-node-reader
+rules:
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: sre-demo-node-reader
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: sre-demo-node-reader
+subjects:
+  - kind: ServiceAccount
+    name: scenario-runner
+    namespace: sre-demo

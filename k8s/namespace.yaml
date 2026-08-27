@@ -1,0 +1,56 @@
+# -----------------------------------------------------------------------------
+# Namespace, quota and limits for the demo lab.
+#
+# The ResourceQuota is set high enough to ADMIT every scenario 02 replica on
+# purpose. If the quota rejected them, the ReplicaSet would report FailedCreate
+# and there would be no scheduling incident to investigate. Admitting them means
+# the node's allocatable capacity is what constrains scheduling, which is the
+# real condition being demonstrated — and the reason scaling the node pool is
+# the correct remediation.
+#
+# The quota still caps the blast radius: nothing in this namespace can consume
+# more than the budget below, however many replicas are requested.
+# -----------------------------------------------------------------------------
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sre-demo
+  labels:
+    project: azure-sre-agent-demo
+    purpose: sre-training
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: sre-demo-quota
+  namespace: sre-demo
+spec:
+  hard:
+    requests.cpu: "4"
+    requests.memory: 6Gi
+    limits.cpu: "8"
+    limits.memory: 8Gi
+    pods: "30"
+    services.loadbalancers: "2"
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: sre-demo-limits
+  namespace: sre-demo
+spec:
+  limits:
+    - type: Container
+      default:
+        cpu: 300m
+        memory: 256Mi
+      defaultRequest:
+        cpu: 100m
+        memory: 128Mi
+      # No single container may exceed this, whatever a manifest asks for.
+      max:
+        cpu: "1"
+        memory: 1Gi
+      min:
+        cpu: 10m
+        memory: 32Mi

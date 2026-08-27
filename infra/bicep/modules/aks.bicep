@@ -27,7 +27,7 @@ param subnetId string
 param workspaceId string
 
 @description('System node pool VM size. Validated for regional availability by the deploy script.')
-param nodeVmSize string = 'Standard_D2as_v5'
+param nodeVmSize string = 'Standard_D2as_v7'
 
 @description('Baseline node count the lab returns to after scenario 02 is reset.')
 @minValue(1)
