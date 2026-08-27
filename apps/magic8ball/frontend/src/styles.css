@@ -1,0 +1,419 @@
+/* ---------------------------------------------------------------------------
+   Magic 8 Ball — the demo lab's user-facing workload.
+
+   Presented as a real product surface rather than a test endpoint, because
+   during a demo this is the thing the audience watches degrade and recover.
+   --------------------------------------------------------------------------- */
+
+:root {
+  --bg: #070b14;
+  --panel: #111a2b;
+  --panel-2: #0d1522;
+  --border: #22314a;
+  --text: #e8eefb;
+  --muted: #94a6c2;
+  --dim: #5f708c;
+  --accent: #7c5cff;
+  --accent-2: #4aa3ff;
+  --good: #34d399;
+  --warn: #fbbf24;
+  --bad: #f87171;
+  --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(900px 500px at 50% -12%, rgba(124, 92, 255, 0.22), transparent 65%),
+    radial-gradient(700px 400px at 85% 110%, rgba(74, 163, 255, 0.14), transparent 60%),
+    var(--bg);
+  color: var(--text);
+  font-family: "Segoe UI", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.page {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 28px 20px 60px;
+}
+
+header.hero {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 22px;
+}
+
+.hero h1 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+}
+
+.hero p {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 13.5px;
+}
+
+.hero-spacer {
+  flex: 1;
+}
+
+.status-strip {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+  flex: none;
+}
+
+.dot.good {
+  background: var(--good);
+  box-shadow: 0 0 8px rgba(52, 211, 153, 0.7);
+}
+.dot.warn {
+  background: var(--warn);
+  box-shadow: 0 0 8px rgba(251, 191, 36, 0.7);
+}
+.dot.bad {
+  background: var(--bad);
+  box-shadow: 0 0 8px rgba(248, 113, 113, 0.7);
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 22px;
+  align-items: start;
+}
+
+@media (max-width: 860px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: 28px 22px;
+  background: linear-gradient(180deg, rgba(17, 26, 43, 0.9), rgba(13, 21, 34, 0.9));
+  border: 1px solid var(--border);
+  border-radius: 18px;
+}
+
+/* --- The ball ------------------------------------------------------------- */
+
+.ball {
+  position: relative;
+  width: min(280px, 72vw);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 32% 26%, #4a5570 0%, #1d2333 34%, #090c14 72%, #05070c 100%);
+  box-shadow:
+    inset 0 -22px 46px rgba(0, 0, 0, 0.85),
+    inset 0 14px 30px rgba(255, 255, 255, 0.06),
+    0 26px 60px rgba(0, 0, 0, 0.6);
+  display: grid;
+  place-items: center;
+  transition: transform 220ms ease;
+}
+
+.ball::after {
+  content: "";
+  position: absolute;
+  top: 11%;
+  left: 20%;
+  width: 30%;
+  height: 20%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.34), transparent 70%);
+  filter: blur(3px);
+  pointer-events: none;
+}
+
+.ball.shaking {
+  animation: shake 620ms cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+
+@keyframes shake {
+  10%,
+  90% {
+    transform: translate(-2px, 1px) rotate(-1.4deg);
+  }
+  20%,
+  80% {
+    transform: translate(4px, -2px) rotate(1.6deg);
+  }
+  30%,
+  50%,
+  70% {
+    transform: translate(-7px, 2px) rotate(-2.2deg);
+  }
+  40%,
+  60% {
+    transform: translate(7px, -1px) rotate(2.2deg);
+  }
+}
+
+.window {
+  width: 52%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 42%, #1b2f6b 0%, #0c1738 62%, #060b1c 100%);
+  border: 2px solid rgba(255, 255, 255, 0.07);
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  text-align: center;
+  box-shadow: inset 0 6px 20px rgba(0, 0, 0, 0.7);
+}
+
+.triangle {
+  position: relative;
+  width: 100%;
+  display: grid;
+  place-items: center;
+}
+
+.answer-text {
+  font-size: clamp(12px, 3.4vw, 16px);
+  font-weight: 650;
+  letter-spacing: 0.2px;
+  line-height: 1.28;
+  color: #dbe6ff;
+  text-shadow: 0 1px 8px rgba(120, 160, 255, 0.5);
+  animation: reveal 480ms ease both;
+}
+
+.answer-text.error {
+  color: #ffc9c9;
+  text-shadow: 0 1px 8px rgba(248, 113, 113, 0.55);
+}
+
+@keyframes reveal {
+  from {
+    opacity: 0;
+    transform: scale(0.86) translateY(6px);
+    filter: blur(3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+.ask-form {
+  width: 100%;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.ask-form input {
+  flex: 1;
+  min-width: 200px;
+  padding: 11px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+}
+
+.ask-form input:focus {
+  outline: none;
+  border-color: var(--accent-2);
+  box-shadow: 0 0 0 3px rgba(74, 163, 255, 0.18);
+}
+
+.ask-form button {
+  padding: 11px 22px;
+  border-radius: 10px;
+  border: none;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: #060b16;
+  font: inherit;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  transition: filter 120ms ease, transform 60ms ease;
+}
+
+.ask-form button:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.ask-form button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.ask-form button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.hint-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.chip {
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px dashed var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.chip:hover {
+  color: var(--text);
+  border-color: var(--accent-2);
+}
+
+/* --- Side panel ----------------------------------------------------------- */
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.panel + .panel {
+  margin-top: 16px;
+}
+
+.panel h2 {
+  margin: 0;
+  padding: 13px 16px;
+  font-size: 11.5px;
+  letter-spacing: 0.9px;
+  text-transform: uppercase;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+
+.panel-body {
+  padding: 12px 16px;
+}
+
+.history-item {
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+}
+
+.history-item:first-child {
+  border-top: none;
+}
+
+.history-item .q {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.history-item .a {
+  font-size: 12.5px;
+  color: var(--muted);
+  font-family: var(--mono);
+  margin-top: 2px;
+}
+
+.history-item .a.positive {
+  color: var(--good);
+}
+.history-item .a.negative {
+  color: var(--bad);
+}
+.history-item .a.neutral {
+  color: var(--warn);
+}
+
+.meta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px 16px;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.meta-grid .k {
+  color: var(--muted);
+}
+
+.meta-grid .v {
+  color: var(--text);
+  word-break: break-all;
+}
+
+.notice {
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  margin-bottom: 14px;
+  border: 1px solid transparent;
+}
+
+.notice.warn {
+  background: rgba(251, 191, 36, 0.1);
+  border-color: rgba(251, 191, 36, 0.4);
+  color: #ffeab8;
+}
+
+.notice.bad {
+  background: rgba(248, 113, 113, 0.11);
+  border-color: rgba(248, 113, 113, 0.45);
+  color: #ffd8d8;
+}
+
+.empty {
+  padding: 18px 16px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+footer {
+  margin-top: 26px;
+  color: #4e5f7a;
+  font-size: 12px;
+  text-align: center;
+  font-family: var(--mono);
+}
