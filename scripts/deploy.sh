@@ -58,6 +58,9 @@ done
 
 load_env_file
 : "${LOCATION:=${AZURE_LOCATION:-eastus}}"
+# Records whether the operator pinned a tag, so --skip-build knows not to
+# override it with whatever is in the registry.
+IMAGE_TAG_EXPLICIT="${IMAGE_TAG:-}"
 
 START_TIME=$(date +%s)
 
@@ -534,6 +537,21 @@ fi
 GIT_COMMIT="$(git -C "${REPO_ROOT}" rev-parse --short HEAD 2>/dev/null || echo unknown)"
 BUILD_TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 IMAGE_TAG="${IMAGE_TAG:-${GIT_COMMIT}}"
+
+# With --skip-build the images in ACR were tagged with whatever commit was
+# current when they were built, which is not necessarily HEAD now. Deriving the
+# tag from HEAD would reference an image that was never built, so resolve it
+# from the registry instead. An explicit IMAGE_TAG always wins.
+if [[ "${SKIP_BUILD}" == "true" && -z "${IMAGE_TAG_EXPLICIT:-}" ]]; then
+  EXISTING_TAG="$(az acr repository show-tags --name "${ACR_NAME}" \
+    --repository scenario-controller --orderby time_desc --top 1 -o tsv 2>/dev/null | head -1 || true)"
+  if [[ -n "${EXISTING_TAG}" && "${EXISTING_TAG}" != "${IMAGE_TAG}" ]]; then
+    warn "Using image tag '${EXISTING_TAG}' found in ACR rather than current commit '${IMAGE_TAG}'"
+    IMAGE_TAG="${EXISTING_TAG}"
+  elif [[ -z "${EXISTING_TAG}" ]]; then
+    die "--skip-build was given but no images were found in ${ACR_NAME}. Run without --skip-build first."
+  fi
+fi
 
 CONTROLLER_IMAGE="${ACR_LOGIN_SERVER}/scenario-controller:${IMAGE_TAG}"
 MAGIC8BALL_STABLE_IMAGE="${ACR_LOGIN_SERVER}/magic8ball:${IMAGE_TAG}"
