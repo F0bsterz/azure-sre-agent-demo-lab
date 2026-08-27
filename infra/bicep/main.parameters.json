@@ -1,0 +1,71 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "suffix": {
+      "value": "REPLACE_ME"
+    },
+    "adminCidr": {
+      "value": "REPLACE_ME"
+    },
+    "adminPublicKey": {
+      "value": "REPLACE_ME"
+    },
+    "adminUsername": {
+      "value": "sreadmin"
+    },
+    "appVmSize": {
+      "value": "Standard_B2s"
+    },
+    "postgresVmSize": {
+      "value": "Standard_B2s"
+    },
+    "aksNodeVmSize": {
+      "value": "Standard_D2as_v5"
+    },
+    "aksBaselineNodeCount": {
+      "value": 1
+    },
+    "kubernetesVersion": {
+      "value": ""
+    },
+    "demoDataDiskSizeGb": {
+      "value": 16
+    },
+    "postgresMaxConnections": {
+      "value": 50
+    },
+    "postgresDatabase": {
+      "value": "sre_demo"
+    },
+    "postgresAppUser": {
+      "value": "sre_app"
+    },
+    "postgresScenarioUser": {
+      "value": "sre_scenario"
+    },
+    "logAnalyticsDailyQuotaGb": {
+      "value": 2
+    },
+    "assignRoles": {
+      "value": true
+    },
+    "tags": {
+      "value": {
+        "project": "azure-sre-agent-demo",
+        "environment": "demo",
+        "managedBy": "bicep",
+        "purpose": "sre-training"
+      }
+    }
+  },
+  "_comment": [
+    "Secrets are NOT stored here. scripts/deploy.sh generates postgresAppPassword and",
+    "postgresScenarioPassword at deploy time, passes them as secure parameters and",
+    "persists them in the lab Key Vault. suffix, adminCidr, adminPublicKey and",
+    "deployerObjectId are also supplied by the deploy script and override the",
+    "REPLACE_ME placeholders above.",
+    "This file exists so the template can be deployed manually with:",
+    "  az deployment group create -g <rg> -f infra/bicep/main.bicep -p @infra/bicep/main.parameters.json -p postgresAppPassword=... postgresScenarioPassword=..."
+  ]
+}
