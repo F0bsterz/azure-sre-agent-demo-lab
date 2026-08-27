@@ -126,9 +126,14 @@ metadata:
     app: magic8ball
 spec:
   type: LoadBalancer
-  # Restricted to the administrator CIDR rather than open to the Internet.
+  # Restricted to the administrator CIDRs rather than open to the Internet.
+  #
+  # This is only ONE of two gates. The NSG on the AKS subnet carries an
+  # equivalent rule, and both must list the same addresses — if they drift, the
+  # request is dropped rather than refused and the browser simply hangs.
+  # scripts/grant-access.sh updates both together.
   loadBalancerSourceRanges:
-    - __ADMIN_CIDR__
+__ADMIN_CIDR_LIST__
   selector:
     app: magic8ball
   ports:

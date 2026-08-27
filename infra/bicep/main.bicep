@@ -21,8 +21,8 @@ param location string = resourceGroup().location
 @maxLength(12)
 param suffix string
 
-@description('CIDR permitted to reach SSH, the Scenario Controller UI and the Magic 8 Ball load balancer.')
-param adminCidr string
+@description('CIDRs permitted to reach SSH, the Scenario Controller UI and the Magic 8 Ball load balancer.')
+param adminCidrs array
 
 @description('SSH public key installed on both lab VMs. Password authentication is disabled.')
 param adminPublicKey string
@@ -93,7 +93,7 @@ module network 'modules/network.bicep' = {
     location: location
     tags: tags
     suffix: suffix
-    adminCidr: adminCidr
+    adminCidrs: adminCidrs
   }
 }
 

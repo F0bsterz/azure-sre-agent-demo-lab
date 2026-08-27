@@ -29,8 +29,10 @@ Usage: scripts/deploy.sh [options]
   --subscription <id>    Azure subscription ID (defaults to the current az account)
   --location <region>    Azure region, e.g. eastus, westus3, uksouth (default: eastus)
   --suffix <string>      Reuse a specific lab suffix instead of generating one
-  --admin-cidr <cidr>    CIDR allowed to reach SSH, the controller UI and Magic 8 Ball
-                         (default: the detected public IP of this machine, as /32)
+  --admin-cidr <cidr>    CIDR(s) allowed to reach SSH, the controller UI and Magic 8 Ball.
+                         Repeatable, or comma-separated. Include the address you
+                         will BROWSE from — it is often not this machine.
+                         Prompted for interactively when omitted.
   --skip-build           Do not rebuild container images
   --skip-apps            Deploy infrastructure only
   --yes                  Do not prompt for confirmation
@@ -39,6 +41,7 @@ Usage: scripts/deploy.sh [options]
 Examples:
   ./scripts/deploy.sh --subscription 00000000-0000-0000-0000-000000000000 --location eastus
   ./scripts/deploy.sh --location westus3 --admin-cidr 203.0.113.10/32 --yes
+  ./scripts/deploy.sh --location eastus2 --admin-cidr 203.0.113.10/32 --admin-cidr 198.51.100.7/32
 USAGE
 }
 
@@ -47,7 +50,7 @@ while [[ $# -gt 0 ]]; do
     --subscription) SUBSCRIPTION_ID="$2"; shift 2 ;;
     --location) LOCATION="$2"; shift 2 ;;
     --suffix) SUFFIX="$2"; shift 2 ;;
-    --admin-cidr) ADMIN_CIDR="$2"; shift 2 ;;
+    --admin-cidr) ADMIN_CIDR="${ADMIN_CIDR:+${ADMIN_CIDR},}$2"; shift 2 ;;
     --skip-build) SKIP_BUILD=true; shift ;;
     --skip-apps) SKIP_APPS=true; shift ;;
     --yes|-y) ASSUME_YES=true; shift ;;
@@ -131,20 +134,78 @@ else
   ok "All required providers are registered"
 fi
 
-# --- 6. Administrator CIDR --------------------------------------------------
+# --- 6. Administrator CIDRs -------------------------------------------------
 
-step "6/20  Determining administrator access CIDR"
-if [[ -z "${ADMIN_CIDR}" ]]; then
-  if detected_ip="$(detect_public_ip)"; then
-    ADMIN_CIDR="${detected_ip}/32"
-    ok "Detected public IP ${detected_ip}; restricting access to ${ADMIN_CIDR}"
+step "6/20  Determining administrator access CIDRs"
+
+# The machine running this script is very often NOT the machine the operator
+# will browse from — a build agent, a jump box, CI. Silently allowing only the
+# deploying host produces a lab that deploys perfectly and is unreachable, so
+# ask rather than assume.
+DETECTED_IP=""
+if DETECTED_IP="$(detect_public_ip)"; then
+  info "This machine's public IP is ${DETECTED_IP}"
+else
+  warn "Could not detect this machine's public IP"
+fi
+
+ADMIN_CIDRS=()
+if [[ -n "${ADMIN_CIDR}" ]]; then
+  # Accept a comma or space separated list from --admin-cidr or .env.
+  IFS=', ' read -ra ADMIN_CIDRS <<< "${ADMIN_CIDR}"
+  ok "Using supplied CIDR(s): ${ADMIN_CIDRS[*]}"
+elif [[ -t 0 && "${ASSUME_YES}" != "true" ]]; then
+  echo
+  echo "  Which address(es) should be allowed to reach the lab?"
+  echo "  This controls SSH, the Scenario Controller UI and Magic 8 Ball."
+  echo
+  echo "  Enter one or more CIDRs separated by commas. Include the address you"
+  echo "  will browse from — find it at https://api.ipify.org"
+  echo
+  [[ -n "${DETECTED_IP}" ]] && echo "  Press Enter to accept this machine only: ${DETECTED_IP}/32"
+  echo
+  read -r -p "  Allowed CIDR(s): " reply
+  if [[ -z "${reply}" ]]; then
+    [[ -n "${DETECTED_IP}" ]] || die "No CIDR supplied and no public IP detected. Re-run with --admin-cidr."
+    ADMIN_CIDRS=("${DETECTED_IP}/32")
   else
-    die "Could not detect your public IP. Pass --admin-cidr <cidr> explicitly. Refusing to default SSH to the whole Internet."
+    IFS=', ' read -ra ADMIN_CIDRS <<< "${reply}"
   fi
 else
-  ok "Using supplied CIDR ${ADMIN_CIDR}"
-  [[ "${ADMIN_CIDR}" == "0.0.0.0/0" ]] && warn "ADMIN_CIDR is 0.0.0.0/0 — the lab will be reachable from the entire Internet."
+  # Non-interactive: fall back to the detected address, but say plainly that it
+  # may not be the one the operator needs.
+  [[ -n "${DETECTED_IP}" ]] || die "Could not detect a public IP and none was supplied. Pass --admin-cidr <cidr>."
+  ADMIN_CIDRS=("${DETECTED_IP}/32")
+  warn "Non-interactive run: allowing only ${DETECTED_IP}/32 (this machine)."
+  warn "If you browse from elsewhere, run: ./scripts/grant-access.sh --cidr <your-ip>/32"
 fi
+
+# Normalise and validate: a bare IP is a common and harmless mistake.
+NORMALISED=()
+for entry in "${ADMIN_CIDRS[@]}"; do
+  [[ -z "${entry}" ]] && continue
+  [[ "${entry}" =~ / ]] || entry="${entry}/32"
+  [[ "${entry}" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}/[0-9]{1,2}$ ]] \
+    || die "Invalid CIDR '${entry}'. Expected something like 203.0.113.10/32."
+  NORMALISED+=("${entry}")
+done
+ADMIN_CIDRS=("${NORMALISED[@]}")
+(( ${#ADMIN_CIDRS[@]} > 0 )) || die "No valid administrator CIDR was resolved."
+
+for entry in "${ADMIN_CIDRS[@]}"; do
+  [[ "${entry}" == "0.0.0.0/0" ]] && warn "0.0.0.0/0 exposes the lab to the entire Internet."
+done
+ok "Allowing: ${ADMIN_CIDRS[*]}"
+
+# JSON array for Bicep, YAML list for the Kubernetes Service.
+ADMIN_CIDRS_JSON="$(printf '%s\n' "${ADMIN_CIDRS[@]}" | jq -R . | jq -sc .)"
+ADMIN_CIDR_YAML=""
+for entry in "${ADMIN_CIDRS[@]}"; do
+  ADMIN_CIDR_YAML="${ADMIN_CIDR_YAML}    - ${entry}\\n"
+done
+ADMIN_CIDR_YAML="${ADMIN_CIDR_YAML%\\n}"
+# Kept for the state file and messages.
+ADMIN_CIDR="${ADMIN_CIDRS[*]}"
 
 # --- 7. Sizing and quota ----------------------------------------------------
 
@@ -363,7 +424,7 @@ deploy_infra() {
     --parameters \
       suffix="${SUFFIX}" \
       location="${LOCATION}" \
-      adminCidr="${ADMIN_CIDR}" \
+      adminCidrs="${ADMIN_CIDRS_JSON}" \
       adminUsername="${ADMIN_USERNAME}" \
       adminPublicKey="${ADMIN_PUBLIC_KEY}" \
       postgresAppPassword="${PG_APP_PASSWORD}" \
@@ -666,7 +727,7 @@ render_manifest() {
     -e "s|__POSTGRES_HOST__|${PG_PRIVATE_IP}|g" \
     -e "s|__POSTGRES_DB__|${PG_DATABASE}|g" \
     -e "s|__POSTGRES_USER__|${PG_APP_USER}|g" \
-    -e "s|__ADMIN_CIDR__|${ADMIN_CIDR}|g" \
+    -e "s|__ADMIN_CIDR_LIST__|${ADMIN_CIDR_YAML}|g" \
     -e "s|__APP_VM_CIDR__|${APP_VM_IP}/32|g" \
     -e "s|__LAB_SUFFIX__|${SUFFIX}|g" \
     "$1"
@@ -843,7 +904,43 @@ fi
 
 # --- 20. Smoke tests and summary -------------------------------------------
 
-step "20/20  Running smoke tests"
+# Reconcile the admin rules before testing. Two reasons this is not redundant
+# with the Bicep deployment:
+#   * Magic 8 Ball sits behind two independent gates (the AKS subnet NSG and the
+#     Service's loadBalancerSourceRanges). If they drift, traffic is dropped
+#     rather than refused and the browser hangs with no error.
+#   * Defender for Cloud and similar governance tooling remove permissive
+#     inbound rules after deployment; the SSH rule in particular can disappear.
+step "20/20  Reconciling administrator access and running smoke tests"
+
+reconcile_rule() {
+  local nsg="$1" rule="$2" port="$3" priority="$4" description="$5"
+  if az network nsg rule show -g "${RESOURCE_GROUP}" --nsg-name "${nsg}" -n "${rule}" -o none 2>/dev/null; then
+    az network nsg rule update -g "${RESOURCE_GROUP}" --nsg-name "${nsg}" -n "${rule}" \
+      --source-address-prefixes "${ADMIN_CIDRS[@]}" -o none 2>/dev/null \
+      && ok "${nsg}/${rule}: ${ADMIN_CIDRS[*]}" \
+      || warn "Could not update ${nsg}/${rule}"
+  else
+    warn "${nsg}/${rule} was missing (governance tooling may have removed it); recreating"
+    az network nsg rule create -g "${RESOURCE_GROUP}" --nsg-name "${nsg}" -n "${rule}" \
+      --priority "${priority}" --direction Inbound --access Allow --protocol Tcp \
+      --source-address-prefixes "${ADMIN_CIDRS[@]}" \
+      --destination-port-ranges ${port} --destination-address-prefixes '*' \
+      --description "${description}" -o none 2>/dev/null \
+      && ok "${nsg}/${rule}: recreated" \
+      || warn "Could not recreate ${nsg}/${rule}"
+  fi
+}
+
+reconcile_rule "nsg-app-${SUFFIX}" Allow-SSH-Admin 22 200 "Administrative SSH, restricted to the administrator CIDRs."
+reconcile_rule "nsg-app-${SUFFIX}" Allow-Controller-UI-Admin "${CONTROLLER_PORT:-8080}" 210 "Scenario Controller UI and API, restricted to the administrator CIDRs."
+reconcile_rule "nsg-aks-${SUFFIX}" Allow-Magic8Ball-From-Admin "80 443" 200 "HTTP/HTTPS to Magic 8 Ball, restricted to the administrator CIDRs."
+
+# Keep the Service in step with the NSG so the two gates cannot disagree.
+kubectl -n sre-demo patch svc magic8ball --type=merge \
+  -p "{\"spec\":{\"loadBalancerSourceRanges\":${ADMIN_CIDRS_JSON}}}" >/dev/null 2>&1 \
+  && ok "magic8ball load balancer: ${ADMIN_CIDRS[*]}" \
+  || warn "Could not patch the magic8ball service source ranges"
 CONTROLLER_URL="http://${APP_VM_IP}:8080"
 MAGIC8BALL_URL="http://${MAGIC8BALL_IP}"
 

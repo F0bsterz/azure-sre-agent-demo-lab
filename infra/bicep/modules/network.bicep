@@ -16,8 +16,8 @@ param tags object
 @description('Naming suffix that makes resource names unique.')
 param suffix string
 
-@description('CIDR permitted to reach SSH and the Scenario Controller UI.')
-param adminCidr string
+@description('CIDRs permitted to reach SSH, the Scenario Controller UI and Magic 8 Ball. Supply every address that needs access: the machine running the deployment is not necessarily the machine the operator browses from.')
+param adminCidrs array
 
 @description('Address space of the lab virtual network.')
 param vnetAddressPrefix string = '10.20.0.0/16'
@@ -48,11 +48,11 @@ resource appNsg 'Microsoft.Network/networkSecurityGroups@2023-11-01' = {
       {
         name: 'Allow-SSH-Admin'
         properties: {
-          description: 'Administrative SSH, restricted to the deploying administrator CIDR.'
+          description: 'Administrative SSH, restricted to the administrator CIDRs.'
           protocol: 'Tcp'
           sourcePortRange: '*'
           destinationPortRange: '22'
-          sourceAddressPrefix: adminCidr
+          sourceAddressPrefixes: adminCidrs
           destinationAddressPrefix: '*'
           access: 'Allow'
           priority: 200
@@ -62,11 +62,11 @@ resource appNsg 'Microsoft.Network/networkSecurityGroups@2023-11-01' = {
       {
         name: 'Allow-Controller-UI-Admin'
         properties: {
-          description: 'Scenario Controller web UI and API, restricted to the administrator CIDR.'
+          description: 'Scenario Controller web UI and API, restricted to the administrator CIDRs.'
           protocol: 'Tcp'
           sourcePortRange: '*'
           destinationPortRange: string(controllerPort)
-          sourceAddressPrefix: adminCidr
+          sourceAddressPrefixes: adminCidrs
           destinationAddressPrefix: '*'
           access: 'Allow'
           priority: 210
@@ -152,14 +152,14 @@ resource aksNsg 'Microsoft.Network/networkSecurityGroups@2023-11-01' = {
       {
         name: 'Allow-Magic8Ball-From-Admin'
         properties: {
-          description: 'HTTP/HTTPS to the Magic 8 Ball load balancer from the administrator CIDR.'
+          description: 'HTTP/HTTPS to the Magic 8 Ball load balancer from the administrator CIDRs.'
           protocol: 'Tcp'
           sourcePortRange: '*'
           destinationPortRanges: [
             '80'
             '443'
           ]
-          sourceAddressPrefix: adminCidr
+          sourceAddressPrefixes: adminCidrs
           destinationAddressPrefix: '*'
           access: 'Allow'
           priority: 200

@@ -5,8 +5,8 @@
     "suffix": {
       "value": "REPLACE_ME"
     },
-    "adminCidr": {
-      "value": "REPLACE_ME"
+    "adminCidrs": {
+      "value": ["REPLACE_ME"]
     },
     "adminPublicKey": {
       "value": "REPLACE_ME"

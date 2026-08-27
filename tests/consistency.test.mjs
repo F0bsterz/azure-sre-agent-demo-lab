@@ -208,3 +208,58 @@ test('Magic 8 Ball probes use HTTP so scenario 06 does not restart the pods', ()
   const readinessBlock = /readinessProbe:[\s\S]*?failureThreshold: \d+/.exec(manifest)?.[0] ?? '';
   assert.ok(readinessBlock.includes('port: http'), 'readiness probe must target the HTTP port');
 });
+
+test('both Magic 8 Ball access gates are kept in sync by deploy and grant-access', () => {
+  const deploy = read('scripts/deploy.sh');
+  const grant = read('scripts/grant-access.sh');
+  const manifest = stripComments(read('k8s/magic8ball/deployment.yaml'));
+  const network = read('infra/bicep/modules/network.bicep');
+
+  // Magic 8 Ball is reachable only if BOTH the AKS subnet NSG rule and the
+  // Service's loadBalancerSourceRanges permit the caller. An NSG drops rather
+  // than refuses, so drift between them presents as a hang with no error —
+  // which is exactly what makes it worth pinning down in a test.
+  assert.ok(
+    manifest.includes('loadBalancerSourceRanges'),
+    'the magic8ball Service must restrict source ranges',
+  );
+  assert.ok(
+    network.includes('Allow-Magic8Ball-From-Admin'),
+    'the AKS subnet NSG must carry the matching rule',
+  );
+
+  for (const [name, script] of [['deploy.sh', deploy], ['grant-access.sh', grant]]) {
+    assert.ok(
+      script.includes('Allow-Magic8Ball-From-Admin'),
+      `${name} must maintain the AKS subnet NSG rule`,
+    );
+    assert.ok(
+      script.includes('loadBalancerSourceRanges'),
+      `${name} must maintain the Service source ranges`,
+    );
+  }
+});
+
+test('administrator access is a list and deploy prompts rather than assuming', () => {
+  const deploy = read('scripts/deploy.sh');
+  const main = read('infra/bicep/main.bicep');
+  const network = read('infra/bicep/modules/network.bicep');
+
+  assert.ok(main.includes('param adminCidrs array'), 'main.bicep must accept a list of admin CIDRs');
+  assert.ok(network.includes('param adminCidrs array'), 'network.bicep must accept a list of admin CIDRs');
+  assert.ok(
+    !network.includes('sourceAddressPrefix: adminCidr\n'),
+    'network rules must use sourceAddressPrefixes with the list',
+  );
+
+  // The deploying host is frequently not the browsing host, so a silent
+  // auto-detect strands the operator outside their own lab.
+  assert.ok(
+    deploy.includes('Allowed CIDR(s):'),
+    'deploy.sh must prompt for the administrator CIDRs when they are not supplied',
+  );
+  assert.ok(
+    deploy.includes('reconcile_rule'),
+    'deploy.sh must reconcile the admin NSG rules after deployment',
+  );
+});
