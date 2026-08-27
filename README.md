@@ -59,8 +59,6 @@ themselves, or use to train an on-call team.
 
 ![Azure SRE Agent demo lab architecture](docs/sre-demo-architecture.svg)
 
-<sub>Also available as [PNG](docs/sre-demo-architecture.png) for slide decks.</sub>
-
 <details>
 <summary>Logical view (Mermaid)</summary>
 
