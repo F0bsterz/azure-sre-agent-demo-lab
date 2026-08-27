@@ -46,22 +46,32 @@ spec:
       # Never evict application workloads to make room for the pressure test.
       priorityClassName: sre-demo-low-priority
       terminationGracePeriodSeconds: 5
+# Sizing note: these numbers are what create the incident, and the gap between
+# them is deliberate. The node has ~1900m allocatable and system workloads plus
+# the demo apps already request ~1617m, leaving roughly 283m. At a 100m request
+# only two replicas fit; the rest stay Pending. Those two then consume up to
+# 900m each, so the node genuinely saturates and Magic 8 Ball degrades.
+#
+# Under-requesting while over-consuming is exactly how noisy-neighbour incidents
+# happen in production, and it produces both signals this scenario needs:
+# unschedulable pods AND real CPU starvation. A workload that merely failed to
+# schedule would leave the cluster idle and Magic 8 Ball perfectly healthy.
       containers:
         - name: resource-burner
           image: __RESOURCE_BURNER_IMAGE__
           imagePullPolicy: IfNotPresent
           env:
             - name: MEMORY_MB
-              value: "384"
+              value: "300"
             - name: CPU_PERCENT
-              value: "85"
+              value: "95"
           resources:
             requests:
-              cpu: 300m
-              memory: 512Mi
+              cpu: 100m
+              memory: 256Mi
             limits:
-              cpu: 500m
-              memory: 640Mi
+              cpu: 900m
+              memory: 512Mi
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
