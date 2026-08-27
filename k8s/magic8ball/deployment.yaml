@@ -116,6 +116,7 @@ spec:
         - name: tmp
           emptyDir: {}
 ---
+# Public endpoint for the demonstrator and the audience.
 apiVersion: v1
 kind: Service
 metadata:
@@ -125,12 +126,39 @@ metadata:
     app: magic8ball
 spec:
   type: LoadBalancer
-  # Restricted rather than open to the Internet. Both entries are required: the
-  # administrator's address for the browser, and the App VM's address because
-  # the Scenario Controller's synthetic HTTP and TLS probes originate there.
+  # Restricted to the administrator CIDR rather than open to the Internet.
   loadBalancerSourceRanges:
     - __ADMIN_CIDR__
-    - __APP_VM_CIDR__
+  selector:
+    app: magic8ball
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+      protocol: TCP
+    - name: https
+      port: 443
+      targetPort: 8443
+      protocol: TCP
+---
+# Internal endpoint used by the Scenario Controller's synthetic probes.
+#
+# The controller cannot use the public frontend above: it runs on a VM inside
+# the same VNet as the AKS backends, and Azure Load Balancer does not support
+# that hairpin: traffic from a VNet participant to a public frontend backed by
+# the same VNet is dropped. Probing over the internal load balancer is also
+# simply more correct — internal monitoring should not leave the network.
+apiVersion: v1
+kind: Service
+metadata:
+  name: magic8ball-internal
+  namespace: sre-demo
+  labels:
+    app: magic8ball
+  annotations:
+    service.beta.kubernetes.io/azure-load-balancer-internal: "true"
+spec:
+  type: LoadBalancer
   selector:
     app: magic8ball
   ports:

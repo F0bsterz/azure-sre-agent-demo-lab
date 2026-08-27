@@ -697,13 +697,15 @@ wait_for_lb() {
   return 1
 }
 MAGIC8BALL_IP="$(wait_for_lb magic8ball)" || die "Magic 8 Ball load balancer did not receive an address"
+MAGIC8BALL_INTERNAL_IP="$(wait_for_lb magic8ball-internal)" || die "Magic 8 Ball internal load balancer did not receive an address"
 RUNNER_IP="$(wait_for_lb scenario-runner)" || die "scenario-runner internal load balancer did not receive an address"
-ok "Magic 8 Ball at ${MAGIC8BALL_IP}, scenario-runner (internal) at ${RUNNER_IP}"
+ok "Magic 8 Ball at ${MAGIC8BALL_IP} (public) / ${MAGIC8BALL_INTERNAL_IP} (internal), scenario-runner at ${RUNNER_IP}"
 
-# The certificate must cover the address clients actually use, so reissue now
-# that the load balancer IP is known, then install the refreshed pairs.
-step "18b/20  Reissuing certificates for the load balancer address"
-FORCE_REGENERATE=true bash "${REPO_ROOT}/scripts/gen-certs.sh" --force --ip "${MAGIC8BALL_IP}" >/dev/null
+# The certificate must cover BOTH addresses: the public one for the browser and
+# the internal one the controller's TLS probe actually connects to.
+step "18b/20  Reissuing certificates for the load balancer addresses"
+FORCE_REGENERATE=true bash "${REPO_ROOT}/scripts/gen-certs.sh" --force \
+  --ip "${MAGIC8BALL_IP}" --ip "${MAGIC8BALL_INTERNAL_IP}" >/dev/null
 VALID_NOT_AFTER="$(openssl x509 -in "${CERT_DIR}/valid.crt" -noout -enddate | cut -d= -f2)"
 EXPIRED_NOT_AFTER="$(openssl x509 -in "${CERT_DIR}/expired.crt" -noout -enddate | cut -d= -f2)"
 apply_tls_secret magic8ball-tls-valid   "${CERT_DIR}/valid.crt"   "${CERT_DIR}/valid.key"   valid   "${VALID_NOT_AFTER}"
@@ -711,7 +713,7 @@ apply_tls_secret magic8ball-tls-expired "${CERT_DIR}/expired.crt" "${CERT_DIR}/e
 apply_tls_secret magic8ball-tls         "${CERT_DIR}/valid.crt"   "${CERT_DIR}/valid.key"   valid   "${VALID_NOT_AFTER}"
 kubectl -n sre-demo rollout restart deployment/magic8ball >/dev/null
 kubectl -n sre-demo rollout status deployment/magic8ball --timeout=300s || warn "magic8ball restart is slow"
-ok "Certificates now valid for ${MAGIC8BALL_IP}"
+ok "Certificates now valid for ${MAGIC8BALL_IP} and ${MAGIC8BALL_INTERNAL_IP}"
 
 # --- 19. App VM -------------------------------------------------------------
 
@@ -782,8 +784,8 @@ APP_SUBNET_PREFIX=10.20.1.0/24
 AKS_SUBNET_PREFIX=10.20.3.0/24
 SCENARIO_RUNNER_URL=http://${RUNNER_IP}:8090
 SCENARIO_RUNNER_TOKEN=${RUNNER_TOKEN}
-MAGIC8BALL_HTTP_URL=http://${MAGIC8BALL_IP}
-MAGIC8BALL_HTTPS_URL=https://${MAGIC8BALL_IP}:443
+MAGIC8BALL_HTTP_URL=http://${MAGIC8BALL_INTERNAL_IP}
+MAGIC8BALL_HTTPS_URL=https://${MAGIC8BALL_INTERNAL_IP}:443
 MAGIC8BALL_TLS_SERVERNAME=magic8ball.sre-demo.local
 MAGIC8BALL_STABLE_IMAGE=${MAGIC8BALL_STABLE_IMAGE}
 MAGIC8BALL_BAD_IMAGE=${MAGIC8BALL_BAD_IMAGE}
@@ -892,6 +894,7 @@ cat > "${STATE_FILE}" <<STATE
   "magic8ballUrl": "${MAGIC8BALL_URL}",
   "magic8ballHttpsUrl": "https://${MAGIC8BALL_IP}",
   "magic8ballIp": "${MAGIC8BALL_IP}",
+  "magic8ballInternalIp": "${MAGIC8BALL_INTERNAL_IP}",
   "scenarioRunnerIp": "${RUNNER_IP}",
   "deployedAt": "${BUILD_TIMESTAMP}"
 }

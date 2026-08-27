@@ -39,7 +39,7 @@ USAGE
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --cn) COMMON_NAME="$2"; shift 2 ;;
-    --ip) LB_IP="$2"; shift 2 ;;
+    --ip) LB_IP="${LB_IP:+${LB_IP},}$2"; shift 2 ;;
     --force) FORCE=true; shift ;;
     -h|--help) usage; exit 0 ;;
     *) die "Unknown argument: $1" ;;
@@ -59,8 +59,13 @@ fi
 # Subject Alternative Names. The IP entry matters because the lab is reached by
 # load balancer address, not by DNS name.
 SAN="DNS:${COMMON_NAME},DNS:magic8ball,DNS:magic8ball.sre-demo.svc.cluster.local,DNS:localhost,IP:127.0.0.1"
+# --ip may be given more than once; every address the service is reached on must
+# be present or TLS validation fails for a reason unrelated to scenario 06.
 if [[ -n "${LB_IP}" ]]; then
-  SAN="${SAN},IP:${LB_IP}"
+  IFS=',' read -ra LB_IPS <<< "${LB_IP}"
+  for ip in "${LB_IPS[@]}"; do
+    [[ -n "${ip}" ]] && SAN="${SAN},IP:${ip}"
+  done
 fi
 
 # Portable UTC date arithmetic across GNU and BSD userlands.
