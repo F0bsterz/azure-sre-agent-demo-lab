@@ -1,0 +1,155 @@
+name: build
+
+# Builds the lab container images to prove the Dockerfiles work.
+#
+# Images are built but NOT pushed by default: a customer deploys with
+# scripts/deploy.sh, which builds directly into their own ACR with `az acr
+# build`. Pushing from CI would require registry credentials this repository
+# does not need to hold.
+#
+# To publish images from CI, set the vars below and prefer GitHub OIDC
+# federated credentials over a long-lived client secret.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/**'
+      - 'services/**'
+      - '.github/workflows/build.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/**'
+      - 'services/**'
+  workflow_dispatch:
+    inputs:
+      push_to_acr:
+        description: 'Push images to ACR (requires AZURE_* secrets and ACR_NAME)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write   # required for OIDC federated login
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  images:
+    name: Build ${{ matrix.image }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: scenario-controller
+            context: apps/scenario-controller
+            dockerfile: apps/scenario-controller/Dockerfile
+            extra_args: ''
+          - image: magic8ball
+            context: apps/magic8ball
+            dockerfile: apps/magic8ball/Dockerfile
+            extra_args: '--build-arg FAULT_MODE=stable'
+          - image: magic8ball-bad
+            context: apps/magic8ball
+            dockerfile: apps/magic8ball/Dockerfile
+            extra_args: '--build-arg FAULT_MODE=bad --build-arg APP_VERSION=0.1.1'
+          - image: scenario-runner
+            context: services/scenario-runner
+            dockerfile: services/scenario-runner/Dockerfile
+            extra_args: ''
+          - image: resource-burner
+            context: services/resource-burner
+            dockerfile: services/resource-burner/Dockerfile
+            extra_args: ''
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build metadata
+        id: meta
+        run: |
+          echo "commit=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          echo "timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
+      - name: Build image
+        run: |
+          docker build \
+            --file "${{ matrix.dockerfile }}" \
+            --tag "${{ matrix.image }}:${{ steps.meta.outputs.commit }}" \
+            --build-arg APP_VERSION=0.1.0 \
+            --build-arg IMAGE_TAG="${{ steps.meta.outputs.commit }}" \
+            --build-arg GIT_COMMIT="${{ steps.meta.outputs.commit }}" \
+            --build-arg BUILD_TIMESTAMP="${{ steps.meta.outputs.timestamp }}" \
+            ${{ matrix.extra_args }} \
+            "${{ matrix.context }}"
+
+      - name: Verify the image starts and reports its build metadata
+        if: matrix.image == 'scenario-controller' || startsWith(matrix.image, 'magic8ball')
+        run: |
+          docker run -d --name probe -p 18080:8080 \
+            -e PORT=8080 "${{ matrix.image }}:${{ steps.meta.outputs.commit }}"
+
+          for _ in $(seq 1 20); do
+            if curl -fsS http://127.0.0.1:18080/healthz >/dev/null 2>&1; then
+              echo "Container is healthy"
+              curl -fsS http://127.0.0.1:18080/api/version | tee /tmp/version.json
+              # Build metadata must be present: scenario 03 depends on it for
+              # correlating an incident with a specific deployment.
+              grep -q "${{ steps.meta.outputs.commit }}" /tmp/version.json \
+                || { echo "::error::build metadata missing from /api/version"; exit 1; }
+              docker rm -f probe
+              exit 0
+            fi
+            sleep 3
+          done
+
+          echo "::error::Container did not become healthy"
+          docker logs probe
+          docker rm -f probe
+          exit 1
+
+      - name: Report image size
+        run: docker images "${{ matrix.image }}" --format '{{.Repository}}:{{.Tag}} {{.Size}}'
+
+  push:
+    name: Push to ACR
+    needs: images
+    if: github.event_name == 'workflow_dispatch' && inputs.push_to_acr
+    runs-on: ubuntu-latest
+    environment: azure
+    steps:
+      - uses: actions/checkout@v4
+
+      # OIDC federated credentials — no long-lived client secret is stored.
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Build and push with az acr build
+        env:
+          ACR_NAME: ${{ vars.ACR_NAME }}
+        run: |
+          [ -n "$ACR_NAME" ] || { echo "::error::vars.ACR_NAME is not set"; exit 1; }
+          COMMIT=$(git rev-parse --short HEAD)
+          TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          COMMON="--build-arg APP_VERSION=0.1.0 --build-arg IMAGE_TAG=$COMMIT --build-arg GIT_COMMIT=$COMMIT --build-arg BUILD_TIMESTAMP=$TS"
+
+          az acr build --registry "$ACR_NAME" --image "scenario-controller:$COMMIT" \
+            --file apps/scenario-controller/Dockerfile $COMMON apps/scenario-controller
+          az acr build --registry "$ACR_NAME" --image "magic8ball:$COMMIT" \
+            --file apps/magic8ball/Dockerfile $COMMON --build-arg FAULT_MODE=stable apps/magic8ball
+          az acr build --registry "$ACR_NAME" --image "magic8ball-bad:$COMMIT" \
+            --file apps/magic8ball/Dockerfile $COMMON --build-arg FAULT_MODE=bad apps/magic8ball
+          az acr build --registry "$ACR_NAME" --image "scenario-runner:$COMMIT" \
+            --file services/scenario-runner/Dockerfile $COMMON services/scenario-runner
+          az acr build --registry "$ACR_NAME" --image "resource-burner:$COMMIT" \
+            --file services/resource-burner/Dockerfile $COMMON services/resource-burner

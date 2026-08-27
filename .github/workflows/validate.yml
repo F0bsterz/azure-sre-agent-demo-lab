@@ -1,0 +1,173 @@
+name: validate
+
+# Repository health gate. This does NOT deploy anything and requires no Azure
+# credentials — a customer can clone and deploy the lab entirely locally, and CI
+# exists only to stop the repository rotting.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  applications:
+    name: TypeScript and React builds
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: scenario-controller backend
+            path: apps/scenario-controller/backend
+            build: npx tsc -p tsconfig.json --noEmit
+          - name: scenario-controller frontend
+            path: apps/scenario-controller/frontend
+            build: npx tsc --noEmit && npx vite build
+          - name: magic8ball backend
+            path: apps/magic8ball/backend
+            build: npx tsc -p tsconfig.json --noEmit
+          - name: magic8ball frontend
+            path: apps/magic8ball/frontend
+            build: npx tsc --noEmit && npx vite build
+          - name: scenario-runner
+            path: services/scenario-runner
+            build: npx tsc -p tsconfig.json --noEmit
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        working-directory: ${{ matrix.path }}
+        run: npm install --no-audit --no-fund
+
+      - name: Build ${{ matrix.name }}
+        working-directory: ${{ matrix.path }}
+        run: ${{ matrix.build }}
+
+  resource-burner:
+    name: resource-burner syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check services/resource-burner/burn.js
+
+  bicep:
+    name: Bicep lint and build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Bicep
+        run: |
+          az bicep install
+          az bicep version
+
+      - name: Build main template
+        run: az bicep build --file infra/bicep/main.bicep --stdout > /dev/null
+
+      - name: Build every module independently
+        run: |
+          failed=0
+          for module in infra/bicep/modules/*.bicep; do
+            echo "::group::$module"
+            if az bicep build --file "$module" --stdout > /dev/null; then
+              echo "OK $module"
+            else
+              echo "::error file=$module::Bicep build failed"
+              failed=1
+            fi
+            echo "::endgroup::"
+          done
+          exit $failed
+
+      - name: Fail on hardcoded environment values
+        run: bash tests/no-hardcoded-values.sh
+
+  kubernetes:
+    name: Kubernetes manifest validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install kubeconform
+        run: |
+          curl -sSL -o /tmp/kubeconform.tar.gz \
+            https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz
+          tar -xzf /tmp/kubeconform.tar.gz -C /tmp
+          sudo mv /tmp/kubeconform /usr/local/bin/
+
+      - name: Validate manifests
+        # Placeholders are substituted at deploy time, so they are replaced with
+        # syntactically valid stand-ins purely for schema validation here.
+        run: |
+          mkdir -p /tmp/rendered
+          for manifest in $(find k8s -name '*.yaml'); do
+            sed -e 's|__MAGIC8BALL_STABLE_IMAGE__|example.azurecr.io/magic8ball:test|g' \
+                -e 's|__MAGIC8BALL_BAD_IMAGE__|example.azurecr.io/magic8ball-bad:test|g' \
+                -e 's|__SCENARIO_RUNNER_IMAGE__|example.azurecr.io/scenario-runner:test|g' \
+                -e 's|__RESOURCE_BURNER_IMAGE__|example.azurecr.io/resource-burner:test|g' \
+                -e 's|__POSTGRES_HOST__|10.20.2.4|g' \
+                -e 's|__POSTGRES_DB__|sre_demo|g' \
+                -e 's|__POSTGRES_USER__|sre_app|g' \
+                -e 's|__ADMIN_CIDR__|203.0.113.0/32|g' \
+                -e 's|__LAB_SUFFIX__|citest|g' \
+                "$manifest" > "/tmp/rendered/$(basename $(dirname $manifest))-$(basename $manifest)"
+          done
+          kubeconform -strict -summary -ignore-missing-schemas /tmp/rendered/
+
+  scripts:
+    name: Shell script checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Syntax check
+        run: |
+          failed=0
+          for script in scripts/*.sh tests/*.sh; do
+            if bash -n "$script"; then
+              echo "OK $script"
+            else
+              echo "::error file=$script::Syntax error"
+              failed=1
+            fi
+          done
+          exit $failed
+
+      - name: ShellCheck
+        uses: ludeeus/action-shellcheck@master
+        with:
+          scandir: ./scripts
+          severity: error
+
+  secrets:
+    name: No committed secrets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash tests/no-committed-secrets.sh
+
+  tests:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test tests/*.test.mjs
