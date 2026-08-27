@@ -378,11 +378,49 @@ deploy_infra() {
 }
 
 info "This takes roughly 10-15 minutes (AKS and two VMs)."
-if ! deploy_infra true; then
-  warn "Deployment failed. Retrying without role assignments in case of insufficient RBAC permissions."
-  if deploy_infra false; then
-    warn "Deployed WITHOUT role assignments. Grant them manually:"
-    cat <<MANUAL
+DEPLOY_ERR="$(mktemp)"
+if ! deploy_infra true 2>"${DEPLOY_ERR}"; then
+  DEPLOY_ERROR_TEXT="$(cat "${DEPLOY_ERR}")"
+  echo "${DEPLOY_ERROR_TEXT}" | head -20
+
+  # Regional capacity is not something a retry can fix, and it is not a
+  # permissions problem — distinguish it so the operator is not sent chasing RBAC.
+  if echo "${DEPLOY_ERROR_TEXT}" | grep -qiE "AKSCapacityHeavyUsage|SkuNotAvailable|ZonalAllocationFailed|AllocationFailed|OutOfCapacity"; then
+    rm -f "${DEPLOY_ERR}"
+    fail "Azure reports insufficient capacity in ${LOCATION}."
+    cat <<CAPACITY
+
+This is a regional capacity condition, not a configuration or permission error.
+Azure is temporarily refusing new resources of this type in ${LOCATION}.
+
+What to do:
+
+  1. Re-run in another region — everything else about the lab is unchanged:
+
+       ./scripts/destroy-lab.sh --resource-group ${RESOURCE_GROUP} --yes
+       ./scripts/deploy.sh --location eastus2
+
+     Regions worth trying: eastus2, westus3, centralus, westus2, canadacentral,
+     northeurope, uksouth.
+
+  2. Or wait and retry the same region later — capacity conditions are transient:
+
+       ./scripts/deploy.sh --location ${LOCATION} --suffix ${SUFFIX}
+
+     The deployment is idempotent, so it will reuse everything already created.
+
+The resource group ${RESOURCE_GROUP} has been left in place so you can choose.
+CAPACITY
+    exit 1
+  fi
+
+  # Role assignment failures ARE worth retrying without them: the lab still runs,
+  # and the operator can grant the roles separately.
+  if echo "${DEPLOY_ERROR_TEXT}" | grep -qiE "AuthorizationFailed|RoleAssignment|does not have permission|Forbidden"; then
+    warn "Deployment failed on a permissions error. Retrying without role assignments."
+    if deploy_infra false; then
+      warn "Deployed WITHOUT role assignments. Grant them manually:"
+      cat <<MANUAL
 
   # The App VM identity needs these for scenarios 02 and 05:
   IDENTITY_ID=\$(az identity show -g ${RESOURCE_GROUP} -n id-sre-demo-${SUFFIX} --query principalId -o tsv)
@@ -393,10 +431,16 @@ if ! deploy_infra true; then
   az aks update -g ${RESOURCE_GROUP} -n aks-sre-demo-${SUFFIX} --attach-acr acrsredemo${SUFFIX}
 
 MANUAL
+    else
+      rm -f "${DEPLOY_ERR}"
+      die "Infrastructure deployment failed. Inspect: az deployment group show -g ${RESOURCE_GROUP} -n ${DEPLOYMENT_NAME}"
+    fi
   else
+    rm -f "${DEPLOY_ERR}"
     die "Infrastructure deployment failed. Inspect: az deployment group show -g ${RESOURCE_GROUP} -n ${DEPLOYMENT_NAME}"
   fi
 fi
+rm -f "${DEPLOY_ERR}"
 
 OUTPUTS="$(az deployment group show -g "${RESOURCE_GROUP}" -n "${DEPLOYMENT_NAME}" --query properties.outputs -o json)"
 out() { echo "${OUTPUTS}" | jq -r --arg k "$1" '.[$k].value // empty'; }
