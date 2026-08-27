@@ -303,7 +303,7 @@ limits.
 ### Safety rules
 
 - **One scenario at a time** by default. Overlapping faults make an investigation ambiguous.
-- **Automatic timeout** after 30 minutes, with an automatic safe reset.
+- **Automatic timeout** after 60 minutes, with an automatic safe reset.
 - **Bounded blast radius** — every injected object is labelled `sre-demo-scenario=true` and
   `scenario-id=<id>`; nothing outside this lab is ever created, modified or deleted.
 - **The control plane survives every scenario** — the disk scenario cannot touch the OS disk,

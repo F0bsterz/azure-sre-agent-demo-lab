@@ -242,7 +242,7 @@ does not silently leave a second node billing.
 | LimitRange max per container | 1 CPU / 1Gi | No single container can request more |
 | PriorityClass | `sre-demo-low-priority`, value −10, preemption **Never** | The burner can never evict Magic 8 Ball or scenario-runner |
 | Node floor on reset | Never below baseline | Reset cannot leave the lab smaller than it started |
-| Automatic timeout | 30 minutes | Unattended scenarios self-reset |
+| Automatic timeout | 60 minutes | Unattended scenarios self-reset |
 
 **Why the burner cannot run away.** It is a single process that allocates a fixed buffer once
 and burns CPU on a duty cycle — it never forks, never recurses and never grows. The pressure

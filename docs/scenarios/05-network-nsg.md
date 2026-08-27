@@ -256,7 +256,7 @@ even if the controller is unreachable.
 | Controller traffic | Never blocked | The lab always remains resettable |
 | Rule name | Fixed: `sre-demo-deny-postgres` | Unambiguous to find and to remove |
 | Azure permissions | Contributor on the demo resource group only | Cannot alter anything outside the lab |
-| Automatic timeout | 30 minutes | Unattended scenarios self-reset |
+| Automatic timeout | 60 minutes | Unattended scenarios self-reset |
 
 **Why this is safe to demonstrate.** A network fault sounds alarming to inject, and it would be
 if it were broad. This one is a single rule, on one NSG, matching one protocol and one port,

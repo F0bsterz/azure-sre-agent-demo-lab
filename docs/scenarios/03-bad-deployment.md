@@ -225,7 +225,7 @@ kubectl -n sre-demo rollout status deployment/magic8ball
 | Health endpoints | Always honest | `/healthz` keeps working, so pods are not killed and evidence is preserved |
 | Rollback path | Always available | The stable image stays in ACR; the fault is never irreversible |
 | Rollout strategy | `maxUnavailable: 0` | Neither injection nor rollback causes an outage |
-| Automatic timeout | 30 minutes | Unattended scenarios self-reset |
+| Automatic timeout | 60 minutes | Unattended scenarios self-reset |
 
 **Why the bad build is not simply broken.** It fails a *proportion* of requests rather than all
 of them. A total outage is trivial to spot and uninteresting to investigate; a partial failure

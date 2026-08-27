@@ -128,7 +128,7 @@ export const config = {
   },
 
   scenarios: {
-    timeoutMinutes: int('SCENARIO_TIMEOUT_MINUTES', 30),
+    timeoutMinutes: int('SCENARIO_TIMEOUT_MINUTES', 60),
     allowConcurrent: bool('ALLOW_CONCURRENT_SCENARIOS', false),
     /** Connection leak stops here so administrative sessions remain possible. */
     postgresLeakHeadroom: int('POSTGRES_LEAK_HEADROOM', 6),

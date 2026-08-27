@@ -174,7 +174,7 @@ This is the part worth scrutinising before running it anywhere real.
 - evict application pods (the burner has negative priority and preemption disabled);
 - consume more than the namespace `ResourceQuota`;
 - exceed 92% disk utilisation or fall below 256 MB free;
-- run unattended for more than 30 minutes without automatically resetting.
+- run unattended for more than 60 minutes without automatically resetting.
 
 `destroy-lab.sh` additionally **refuses to delete a resource group** that does not carry the
 `project=azure-sre-agent-demo` tag, and requires the group name to be typed unless `--yes` is

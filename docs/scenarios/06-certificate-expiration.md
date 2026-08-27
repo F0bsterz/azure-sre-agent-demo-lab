@@ -238,7 +238,7 @@ against Kubernetes.
 | Liveness probe | **HTTP, not HTTPS** | Pods are not restarted, so evidence is preserved |
 | Key material | Never leaves the cluster | The runner copies between secrets; nothing transits the controller |
 | RBAC | Named secrets only | The Role lists the three secret names explicitly |
-| Automatic timeout | 30 minutes | Unattended scenarios self-reset |
+| Automatic timeout | 60 minutes | Unattended scenarios self-reset |
 
 **Why the probes use HTTP.** Had liveness used HTTPS, Kubernetes would have judged the pods
 unhealthy and restarted them repeatedly. The incident would present as `CrashLoopBackOff`,

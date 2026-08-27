@@ -331,5 +331,5 @@ A reasonable summary to end on:
 | Reset to healthy | 10–60 s |
 | **Per scenario, end to end** | **10–15 min** |
 
-Running all six with narration takes about 90 minutes. For a 30-minute slot, scenarios 01, 03
+Running all six with narration takes about 90 minutes. For a 60-minute slot, scenarios 01, 03
 and 05 give the widest coverage: infrastructure, application and network.

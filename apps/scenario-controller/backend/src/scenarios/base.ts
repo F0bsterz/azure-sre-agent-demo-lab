@@ -165,6 +165,8 @@ export abstract class BaseScenario implements SreScenario {
   /**
    * Automatic safety net. An unattended fault self-resets so a lab left running
    * after a demo does not sit broken (or, for scenario 01, keep consuming disk).
+   * One hour by default: long enough for an unhurried investigation, short
+   * enough that a forgotten scenario does not persist.
    */
   private armTimeout(): void {
     this.clearTimeout();

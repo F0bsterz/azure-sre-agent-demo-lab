@@ -231,7 +231,7 @@ sudo docker restart sre-scenario-controller
 | Free-space floor | 256 MB | Absolute reserve, independent of percentage |
 | Write location | `/var/sre-demo/logs` only | Never the OS disk, never outside the demo mount |
 | File naming | `sre-demo-scenario-01-*.log` | Reset can identify exactly what it created |
-| Automatic timeout | 30 minutes | Unattended scenarios self-reset |
+| Automatic timeout | 60 minutes | Unattended scenarios self-reset |
 
 **Why a dedicated disk.** Filling the OS disk would risk Docker, the Azure Monitor Agent, SSH
 and the Scenario Controller itself — the very tools needed to diagnose and reset the lab. A

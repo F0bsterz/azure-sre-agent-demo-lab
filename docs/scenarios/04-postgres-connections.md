@@ -252,7 +252,7 @@ sudo -u postgres psql -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity
 | Controller pool size | 2 | The control plane cannot be starved by its own scenario |
 | Session labelling | `application_name = 'sre-demo-scenario-04'` | Reset can target exactly what it created |
 | Termination filter | `LIKE 'sre-demo-scenario%'` only | Unrelated sessions are never terminated |
-| Automatic timeout | 30 minutes | Unattended scenarios self-reset |
+| Automatic timeout | 60 minutes | Unattended scenarios self-reset |
 
 **Why the leak stops short of the ceiling.** Consuming the last connection would lock out the
 diagnosis itself — no `psql`, no `pg_stat_activity`, no reset. Leaving roughly nine slots free

@@ -110,7 +110,7 @@ sequenceDiagram
     else Local fault (01 disk, 04 connections)
         API->>API: start writer / open connections
     end
-    API->>API: state → ACTIVE, arm 30-min timeout
+    API->>API: state → ACTIVE, arm 60-min timeout
     API->>Mon: scenario event + custom metrics
     loop every 20s
         API->>Mon: synthetic probe results
@@ -193,7 +193,7 @@ flowchart TD
     B -->|"yes, concurrency off"| C["409 Conflict"]
     B -->|"no"| D["Transition to INJECTING"]
     D --> E["Apply fault — bounded by construction"]
-    E --> F["Transition to ACTIVE, arm 30-min timer"]
+    E --> F["Transition to ACTIVE, arm 60-min timer"]
     F --> G{"Reset before timeout?"}
     G -->|"yes"| H["Clear fault → IDLE"]
     G -->|"no"| I["Automatic reset → IDLE"]
@@ -210,7 +210,7 @@ Bounds enforced in code, not by convention:
   headroom; termination filters strictly on `application_name`.
 - **Network** — one rule, one protocol, one port, two known source prefixes, one named NSG.
 - **Certificate** — copies between three named secrets; key material never leaves the cluster.
-- **Everything** — 30-minute automatic reset; one scenario at a time by default.
+- **Everything** — 60-minute automatic reset; one scenario at a time by default.
 
 ---
 
