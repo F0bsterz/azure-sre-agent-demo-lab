@@ -347,3 +347,19 @@ test('the SRE agent settings in .env.example are the ones deploy.sh reads', () =
     );
   }
 });
+
+test('the deploying user is granted access to the agent it creates', () => {
+  const module = read('infra/bicep/modules/sre-agent.bicep');
+  const main = read('infra/bicep/main.bicep');
+
+  // Control-plane Owner does not reach the agent data plane, so without this
+  // assignment the agent deploys but nobody can open it.
+  assert.match(module, /sreAgentAdministratorRoleId = 'e79298df-d852-4c6d-84f9-5d13249d1e55'/);
+  assert.match(module, /resource deployerAgentAdmin 'Microsoft\.Authorization\/roleAssignments/);
+  assert.match(module, /scope: agent/, 'the grant must be scoped to the agent, not the group');
+  assert.match(
+    main,
+    /deployerObjectId: assignRoles \? deployerObjectId : ''/,
+    'the grant must honour assignRoles',
+  );
+});

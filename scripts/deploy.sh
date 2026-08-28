@@ -562,6 +562,7 @@ SRE_AGENT_ID="$(out sreAgentId)"
 SRE_AGENT_REGION="$(out sreAgentRegion)"
 SRE_AGENT_MODE="$(out sreAgentActionMode)"
 SRE_AGENT_PRINCIPAL_ID="$(out sreAgentPrincipalId)"
+SRE_AGENT_ENDPOINT="$(out sreAgentEndpoint)"
 APPI_NAME="$(out appInsightsName)"
 APPI_CONNECTION_STRING="$(out appInsightsConnectionString)"
 # A @secure() Bicep output is redacted when the deployment is read back, so it
@@ -1049,6 +1050,7 @@ cat > "${STATE_FILE}" <<STATE
   "sreAgentLocation": "${SRE_AGENT_REGION}",
   "sreAgentMode": "${SRE_AGENT_MODE}",
   "sreAgentPrincipalId": "${SRE_AGENT_PRINCIPAL_ID}",
+  "sreAgentEndpoint": "${SRE_AGENT_ENDPOINT}",
   "deployedAt": "${BUILD_TIMESTAMP}"
 }
 STATE
@@ -1057,6 +1059,7 @@ chmod 600 "${STATE_FILE}"
 ELAPSED=$(( $(date +%s) - START_TIME ))
 if [[ -n "${SRE_AGENT_NAME}" ]]; then
   SRE_AGENT_SUMMARY="  SRE Agent           : ${SRE_AGENT_NAME} (${SRE_AGENT_REGION}, mode ${SRE_AGENT_MODE})
+  SRE Agent UI        : ${SRE_AGENT_ENDPOINT}
 "
   SRE_AGENT_NEXT_STEP="  4. Grant the agent access to this resource group:
      ./scripts/enable-sre-remediation.sh --agent-principal-id ${SRE_AGENT_PRINCIPAL_ID}

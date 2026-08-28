@@ -124,6 +124,40 @@ What the agent gains: the Bicep templates, Kubernetes manifests, application sou
 
 ## 3. Give the agent access to the demo resource group
 
+### First: your own access to the agent
+
+Azure SRE Agent has **two independent permission planes**, and this catches people out:
+
+| Plane | Governs | Roles |
+|---|---|---|
+| Control plane | Creating, reading and deleting the `Microsoft.App/agents` **resource** | Owner, Contributor, Reader |
+| Data plane | Opening and using the **agent itself** at its `*.azuresre.ai` endpoint | SRE Agent Reader / Standard User / Author / Administrator |
+
+**Subscription Owner grants you none of the data-plane roles.** Without one, the agent endpoint
+returns HTTP 401 and the UI reports *"Taking longer than usual… Your agent may be cold-starting,
+or there may be network issues"* — which is misleading, since the agent is running fine.
+
+`deploy.sh --with-agent` assigns the deploying principal **SRE Agent Administrator** on the
+agent, so this is already done for you. For anyone else who needs access:
+
+```bash
+AGENT_ID=$(jq -r .sreAgentId .lab-state.json)
+az role assignment create --assignee <user-object-id> \
+  --role "SRE Agent Administrator" --scope "$AGENT_ID"
+```
+
+Use **SRE Agent Reader** or **Standard User** for people who should watch but not configure.
+
+To confirm access from the command line:
+
+```bash
+TOKEN=$(az account get-access-token --resource https://azuresre.ai --query accessToken -o tsv)
+curl -s -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $TOKEN" \
+  "$(jq -r .sreAgentEndpoint .lab-state.json)"     # 200 = you have access, 401 = you do not
+```
+
+### Then: the agent's access to the lab
+
 The agent needs a managed identity with read access to the lab.
 
 ```bash
@@ -315,6 +349,7 @@ az role assignment delete --assignee "$AGENT_PRINCIPAL_ID" --role "Contributor" 
 | No Application Insights data | Telemetry has not arrived yet | Wait 10 minutes; confirm with the step 4 query |
 | No AKS data | Container Insights disabled | `az aks enable-addons -a monitoring -g $RG -n $AKS --workspace-resource-id <id>` |
 | GitHub connection fails | Consent not granted, or no repository access | Reconnect as a repository/organisation owner |
+| Agent UI spins, then "Taking longer than usual… cold-starting, or there may be network issues" | Almost always **not** cold start. You lack an SRE Agent data-plane role; the endpoint is returning 401 | Assign yourself **SRE Agent Administrator** on the agent (see §3). Subscription Owner does not cover this |
 | Alerts never fire | Evaluation window not yet elapsed | Rules evaluate every 5 minutes over a 10-minute window; allow 5–10 minutes |
 | Agent cannot query the cluster | Cluster User role missing | Grant it, plus RBAC Reader if Azure RBAC is enabled |
 
@@ -330,8 +365,10 @@ Automated by `scripts/deploy.sh --with-agent`:
    validated before the deployment starts.
 2. **Wiring it to telemetry** — the lab's Application Insights is attached at creation.
 3. **Creating its identity** — a dedicated user-assigned identity, holding no roles.
-4. **Recording it** — name, region, mode and principal ID land in `.lab-state.json` and the
-   deployment summary.
+4. **Granting you access to the agent** — the deploying principal receives **SRE Agent
+   Administrator** on the agent, without which the agent exists but cannot be opened.
+5. **Recording it** — name, region, mode, endpoint and principal ID land in `.lab-state.json`
+   and the deployment summary.
 
 Still yours to do, on purpose:
 

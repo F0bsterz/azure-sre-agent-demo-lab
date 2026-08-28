@@ -231,6 +231,7 @@ module sreAgent 'modules/sre-agent.bicep' = if (deploySreAgent) {
     mode: sreAgentMode
     appInsightsAppId: monitoring.outputs.appInsightsAppId
     appInsightsConnectionString: monitoring.outputs.appInsightsConnectionString
+    deployerObjectId: assignRoles ? deployerObjectId : ''
     tags: tags
   }
 }
@@ -289,3 +290,4 @@ output sreAgentId string = sreAgent.?outputs.agentId ?? ''
 output sreAgentRegion string = sreAgent.?outputs.agentLocation ?? ''
 output sreAgentActionMode string = sreAgent.?outputs.agentMode ?? ''
 output sreAgentPrincipalId string = sreAgent.?outputs.principalId ?? ''
+output sreAgentEndpoint string = sreAgent.?outputs.agentEndpoint ?? ''

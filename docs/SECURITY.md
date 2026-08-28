@@ -69,6 +69,7 @@ you care about.
 | `scenario-runner` service account | Namespace Role | `sre-demo` namespace only |
 | `scenario-runner` service account | Read-only ClusterRole | Nodes (unavoidable: Nodes are not namespaced) |
 | SRE Agent user-assigned identity | **None at creation** | Granted separately, resource group only |
+| Deploying user | SRE Agent Administrator | The agent resource only |
 
 **Why Contributor at all?** Scenario 05 creates and deletes an NSG rule, and scenario 02 scales
 the AKS node pool. Both are write operations against Azure Resource Manager. The grant is at

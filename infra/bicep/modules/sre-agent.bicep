@@ -48,6 +48,9 @@ param appInsightsAppId string
 @secure()
 param appInsightsConnectionString string
 
+@description('Object ID of the principal running the deployment. Granted SRE Agent Administrator so the agent UI is reachable. Empty skips the assignment.')
+param deployerObjectId string = ''
+
 param tags object = {}
 
 // The agent's actions run as a managed identity, and ARM rejects the agent
@@ -90,10 +93,26 @@ resource agent 'Microsoft.App/agents@2026-01-01' = {
   }
 }
 
+// Owner on the subscription does not grant access to the agent itself: the agent
+// UI is a data plane with its own roles, so without this the agent deploys but
+// cannot be opened, and the UI reports a misleading cold-start error.
+var sreAgentAdministratorRoleId = 'e79298df-d852-4c6d-84f9-5d13249d1e55'
+
+resource deployerAgentAdmin 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(deployerObjectId)) {
+  name: guid(agent.id, deployerObjectId, sreAgentAdministratorRoleId)
+  scope: agent
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', sreAgentAdministratorRoleId)
+    principalId: deployerObjectId
+    description: 'Lets the deploying user open and operate the agent. Control-plane Owner does not cover the agent data plane.'
+  }
+}
+
 output agentName string = agent.name
 output agentId string = agent.id
 output agentLocation string = agent.location
 output agentMode string = mode
+output agentEndpoint string = agent.properties.agentEndpoint
 
 // Consumed by scripts/enable-sre-remediation.sh to scope RBAC to this agent.
 output principalId string = agentIdentity.properties.principalId

@@ -427,6 +427,12 @@ it does not grant it anything; access is a separate, deliberate step:
 ./scripts/enable-sre-remediation.sh --agent-principal-id <printed by deploy.sh>
 ```
 
+**Your** access to the agent is handled automatically. Azure SRE Agent has a data plane with
+its own roles, and subscription Owner grants none of them — without one the agent endpoint
+returns 401 and the UI misreports it as a cold start. The deployment therefore assigns the
+deploying principal **SRE Agent Administrator** on the agent. Others need it granted explicitly;
+see [docs/AZURE-SRE-AGENT-SETUP.md](docs/AZURE-SRE-AGENT-SETUP.md).
+
 See **[docs/AZURE-SRE-AGENT-SETUP.md](docs/AZURE-SRE-AGENT-SETUP.md)** for connecting this
 repository, granting scoped access, verifying the agent can see Application Insights, Log
 Analytics, Azure Monitor and AKS diagnostics, and running the first investigation.
