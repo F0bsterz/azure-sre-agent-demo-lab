@@ -99,6 +99,28 @@ created in the portal.
 The same behaviour is available from `.env` via `WITH_AGENT`, `AGENT_MODE` and
 `AGENT_LOCATION`, so a saved configuration deploys an agent without repeating the flags.
 
+### After creating the agent: migrate it in the portal
+
+On first sign-in the agent may show:
+
+> *A newer version of SRE Agent is available. This agent was created during Public Preview.
+> Migrate to get an improved sandbox, code and file access, log-to-code investigation, better
+> memory, and updated approval controls.*
+
+**Select Migrate.** This is a one-time action and there is nothing to change in the template.
+
+The agent generation is not something infrastructure-as-code can choose today. The module
+already requests the generally available API (`Microsoft.App/agents@2026-01-01`) and sets
+`upgradeChannel: 'Stable'`, and the deployed agent reports `Stable` — yet it is still created on
+the preview generation. The properties behind the newer experience are service-managed:
+`sandboxConfiguration`, `experimentalSettings` and `firstPartyConfiguration` are all read-only
+and null. The only writable properties are `actionConfiguration`, `agentIdentity`,
+`agentSpaceId`, `defaultModel`, `incidentManagementConfiguration`,
+`knowledgeGraphConfiguration`, `logConfiguration` and `upgradeChannel`, and ARM exposes no
+migrate operation — only `read`, `write`, `delete` and `listSecrets`.
+
+So migration is a data-plane action in the agent UI. Do it once per agent, after deployment.
+
 ---
 
 ## 2. Connect the private GitHub repository
