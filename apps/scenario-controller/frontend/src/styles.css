@@ -142,6 +142,17 @@ button:disabled {
   white-space: nowrap;
 }
 
+a.env-chip {
+  text-decoration: none;
+  color: var(--accent, #0f6cbd);
+  border-color: var(--accent, #0f6cbd);
+}
+
+a.env-chip:hover,
+a.env-chip:focus-visible {
+  background: var(--bg-hover, rgba(15, 108, 189, 0.12));
+}
+
 .tabs {
   display: flex;
   gap: 4px;

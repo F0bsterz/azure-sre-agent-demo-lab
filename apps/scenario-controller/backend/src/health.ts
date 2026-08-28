@@ -48,6 +48,7 @@ export interface LabStatus {
     aksCluster: string;
     magic8ballUrl: string;
     magic8ballHttpsUrl: string;
+    magic8ballPublicUrl: string;
   };
 }
 
@@ -190,6 +191,7 @@ export async function labStatus(): Promise<LabStatus> {
       aksCluster: config.aks.clusterName,
       magic8ballUrl: config.magic8ball.httpUrl,
       magic8ballHttpsUrl: config.magic8ball.httpsUrl,
+      magic8ballPublicUrl: config.magic8ball.publicUrl,
     },
   };
 }

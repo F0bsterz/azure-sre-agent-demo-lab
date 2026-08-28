@@ -44,6 +44,7 @@ export interface LabStatus {
     aksCluster: string;
     magic8ballUrl: string;
     magic8ballHttpsUrl: string;
+    magic8ballPublicUrl: string;
   };
 }
 

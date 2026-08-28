@@ -121,6 +121,8 @@ export const config = {
   magic8ball: {
     httpUrl: str('MAGIC8BALL_HTTP_URL'),
     httpsUrl: str('MAGIC8BALL_HTTPS_URL'),
+    /** Browser-reachable address. The probe URLs above are the internal load balancer. */
+    publicUrl: str('MAGIC8BALL_PUBLIC_URL'),
     /** PEM of the demo CA so a TLS failure is attributable to expiry, not to an unknown issuer. */
     caCertificate: pem('DEMO_CA_CERT_FILE', 'DEMO_CA_CERT'),
     stableImage: str('MAGIC8BALL_STABLE_IMAGE'),

@@ -225,6 +225,17 @@ export default function App() {
             <div className="env-chip" title="Overall lab health">
               health: {status?.overall}
             </div>
+            {environment.magic8ballPublicUrl ? (
+              <a
+                className="env-chip"
+                href={environment.magic8ballPublicUrl}
+                target="_blank"
+                rel="noreferrer"
+                title="Open the Magic 8 Ball application in a new tab"
+              >
+                Magic 8 Ball ↗
+              </a>
+            ) : null}
           </>
         ) : null}
       </header>
