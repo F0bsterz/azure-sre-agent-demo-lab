@@ -433,9 +433,10 @@ returns 401 and the UI misreports it as a cold start. The deployment therefore a
 deploying principal **SRE Agent Administrator** on the agent. Others need it granted explicitly;
 see [docs/AZURE-SRE-AGENT-SETUP.md](docs/AZURE-SRE-AGENT-SETUP.md).
 
-On first sign-in the agent may offer to **migrate** from the Public Preview generation. Accept
-it. The generation cannot be selected from a template — the properties behind it are
-service-managed and ARM has no migrate operation — so it is a one-time click per agent.
+The agent is created with **both** a system-assigned and a user-assigned identity. That detail
+matters: with only a user-assigned identity the agent still deploys and runs, but lands on the
+Public Preview generation and the portal asks you to migrate it. Nothing in the resource shows
+this — `upgradeChannel` reads `Stable` either way.
 
 See **[docs/AZURE-SRE-AGENT-SETUP.md](docs/AZURE-SRE-AGENT-SETUP.md)** for connecting this
 repository, granting scoped access, verifying the agent can see Application Insights, Log

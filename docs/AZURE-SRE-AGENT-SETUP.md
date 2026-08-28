@@ -99,27 +99,33 @@ created in the portal.
 The same behaviour is available from `.env` via `WITH_AGENT`, `AGENT_MODE` and
 `AGENT_LOCATION`, so a saved configuration deploys an agent without repeating the flags.
 
-### After creating the agent: migrate it in the portal
+### Both managed identities are required
 
-On first sign-in the agent may show:
+The agent is created with **system-assigned and user-assigned identities together**. The
+user-assigned identity carries connector authentication and Azure RBAC; the system-assigned one
+backs the agent's own infrastructure.
+
+This is not cosmetic. An agent created with `type: 'UserAssigned'` alone provisions
+successfully and runs, but lands on the **Public Preview generation**, and the portal then
+offers:
 
 > *A newer version of SRE Agent is available. This agent was created during Public Preview.
 > Migrate to get an improved sandbox, code and file access, log-to-code investigation, better
 > memory, and updated approval controls.*
 
-**Select Migrate.** This is a one-time action and there is nothing to change in the template.
+Nothing in the resource reveals this. `upgradeChannel` reads `Stable`, the template already
+targets the generally available API (`Microsoft.App/agents@2026-01-01`), both API versions
+return an identical property set, and the properties behind the newer experience
+(`sandboxConfiguration`, `experimentalSettings`, `firstPartyConfiguration`) are read-only and
+null. The banner in the agent UI is the only signal.
 
-The agent generation is not something infrastructure-as-code can choose today. The module
-already requests the generally available API (`Microsoft.App/agents@2026-01-01`) and sets
-`upgradeChannel: 'Stable'`, and the deployed agent reports `Stable` — yet it is still created on
-the preview generation. The properties behind the newer experience are service-managed:
-`sandboxConfiguration`, `experimentalSettings` and `firstPartyConfiguration` are all read-only
-and null. The only writable properties are `actionConfiguration`, `agentIdentity`,
-`agentSpaceId`, `defaultModel`, `incidentManagementConfiguration`,
-`knowledgeGraphConfiguration`, `logConfiguration` and `upgradeChannel`, and ARM exposes no
-migrate operation — only `read`, `write`, `delete` and `listSecrets`.
+With `type: 'SystemAssigned,UserAssigned'` the agent is created on the current generation and
+the banner does not appear — verified by deleting a preview-generation agent and redeploying.
 
-So migration is a data-plane action in the agent UI. Do it once per agent, after deployment.
+If you have an older agent showing that banner, either select **Migrate** in the portal, or
+delete it and redeploy with `--with-agent`. Redeploying loses the agent's accumulated memory
+and connections, and issues a new principal ID, so re-run `enable-sre-remediation.sh`
+afterwards.
 
 ---
 

@@ -363,3 +363,16 @@ test('the deploying user is granted access to the agent it creates', () => {
     'the grant must honour assignRoles',
   );
 });
+
+test('the agent enables both managed identities', () => {
+  const module = read('infra/bicep/modules/sre-agent.bicep');
+
+  // UserAssigned alone still deploys, but the service then creates the agent on
+  // the Public Preview generation. Nothing in the resource reveals it, so this
+  // regression is invisible without the test.
+  assert.match(
+    module,
+    /type: 'SystemAssigned,UserAssigned'/,
+    'dropping the system-assigned identity silently downgrades the agent generation',
+  );
+});

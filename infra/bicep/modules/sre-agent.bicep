@@ -73,8 +73,9 @@ resource agent 'Microsoft.App/agents@2026-01-01' = {
   tags: tags
   identity: {
     // Both are required. The user-assigned identity carries connector auth and
-    // Azure RBAC; the system-assigned one backs the agent's own infrastructure,
-    // which is what the portal wizard provisions.
+    // Azure RBAC; the system-assigned one backs the agent's own infrastructure.
+    // UserAssigned alone still deploys, but the service then creates the agent
+    // on the Public Preview generation and the portal asks you to migrate it.
     type: 'SystemAssigned,UserAssigned'
     userAssignedIdentities: {
       '${agentIdentity.id}': {}
