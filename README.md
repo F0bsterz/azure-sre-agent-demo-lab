@@ -622,4 +622,26 @@ tests/         template and manifest tests
 
 ## Licence
 
-MIT. Provided as a demonstration environment; not intended for production use.
+MIT. Provided as a demonstration environment; not intended for production use. See
+[LICENSE](LICENSE).
+
+---
+
+## Disclaimer
+
+**This is not an official Microsoft product and is not supported by Microsoft.** It is an
+independent demonstration environment, provided as-is and without warranty of any kind. Any
+opinions expressed are the author's own and do not represent the views of Microsoft.
+
+This lab deliberately creates faults — it fills disks, saturates CPU, exhausts database
+connections, blocks network paths, deploys a knowingly broken build and installs an expired
+certificate. **Deploy it only into a subscription you are willing to break.** It creates real,
+billed Azure resources; you are responsible for the cost and for tearing them down
+(`scripts/destroy-lab.sh`).
+
+Granting an automated agent write access to Azure resources is a decision with real
+consequences. `scripts/enable-sre-remediation.sh` is deliberately a separate, explicit step, and
+is scoped to the demo resource group only. Review it before running it.
+
+Microsoft, Azure, and related names and logos are trademarks of the Microsoft group of
+companies. Their use here is descriptive and does not imply endorsement or affiliation.
