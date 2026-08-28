@@ -1,13 +1,17 @@
 # Azure SRE Agent — setup for the demo lab
 
-This document connects an Azure SRE Agent to a deployed lab: creating the agent, connecting the
+This document covers the Azure SRE Agent for a deployed lab: creating the agent, connecting the
 GitHub repository, granting scoped access, verifying it can see the telemetry, and running the
 first investigation.
 
-> **Provisioning is partly interactive.** Azure SRE Agent availability, regions and connector
-> consent vary by tenant, and GitHub authorisation requires a human to approve an OAuth grant.
-> The lab deploys fully without any of this — `scripts/deploy.sh` never fails because the agent
-> is not yet connected. The steps below are the remaining manual work.
+> **What is automated, and what is not.** `scripts/deploy.sh --with-agent` creates the agent
+> for you, wires it to the lab's Application Insights and prints the command to grant it
+> access. Two things remain human decisions rather than script steps: **GitHub connector
+> consent**, which requires an interactive OAuth approval, and **granting the agent write
+> access**, which is deliberately a separate command.
+>
+> The agent is opt-in. Without `--with-agent` nothing is created, and the lab still deploys
+> and runs completely — `scripts/deploy.sh` never fails because no agent is connected.
 
 ---
 
@@ -17,13 +21,20 @@ You need:
 
 - a deployed lab (`./scripts/deploy.sh` completed, `./scripts/validate.sh` green);
 - **Owner** or **User Access Administrator** on the demo resource group, to grant the agent access;
-- an Azure region where Azure SRE Agent is available;
+- a region where Azure SRE Agent is available — it is **not** offered in `eastus`, the default
+  lab region, so `--with-agent` requires `--location`/`--agent-location` to name one that is;
 - 10–15 minutes of telemetry accumulated, so the agent has something to read.
 
 Collect your lab details:
 
 ```bash
 jq -r '{subscriptionId, resourceGroup, location, appInsightsName, logAnalyticsName, aksName}' .lab-state.json
+```
+
+If you deployed with `--with-agent`, the agent's own details are there too:
+
+```bash
+jq -r '{sreAgentName, sreAgentLocation, sreAgentMode, sreAgentPrincipalId}' .lab-state.json
 ```
 
 ---
@@ -66,20 +77,22 @@ adding `--with-agent`; the deployment is idempotent.
    - **Region** — a region where the service is offered; it does not have to match the lab.
 5. Create, and wait for provisioning to finish.
 
-### CLI, where available
+### Checking availability yourself
 
-Programmatic provisioning is only possible if the resource provider is registered and available
-in your tenant:
+`deploy.sh --with-agent` performs this check for you and refuses to continue with the list of
+valid regions. To check by hand:
 
 ```bash
 az provider register --namespace Microsoft.App --wait
-az provider show --namespace Microsoft.App --query "resourceTypes[?resourceType=='agents']" -o table
+az provider show --namespace Microsoft.App \
+  --query "resourceTypes[?resourceType=='agents'].locations[]" -o tsv
 ```
 
-If that returns nothing, the agent must be created in the portal for now.
+If that returns nothing, the provider is unavailable in your tenant and the agent has to be
+created in the portal.
 
-The deploy script honours `DEPLOY_SRE_AGENT=true` in `.env` and will attempt provisioning when
-the API and permissions allow it, reporting clearly and continuing when they do not.
+The same behaviour is available from `.env` via `WITH_AGENT`, `AGENT_MODE` and
+`AGENT_LOCATION`, so a saved configuration deploys an agent without repeating the flags.
 
 ---
 
@@ -113,8 +126,9 @@ RG=$(jq -r .resourceGroup .lab-state.json)
 SUB=$(jq -r .subscriptionId .lab-state.json)
 SCOPE="/subscriptions/${SUB}/resourceGroups/${RG}"
 
-# Object ID of the agent's managed identity, from the portal Identity blade
-AGENT_PRINCIPAL_ID="<agent-managed-identity-object-id>"
+# Deployed with --with-agent? The principal ID is already recorded.
+# Otherwise take it from the portal: your agent -> Identity -> Object ID.
+AGENT_PRINCIPAL_ID=$(jq -r '.sreAgentPrincipalId // empty' .lab-state.json)
 
 # Read-only to begin with — enough for detection and investigation.
 az role assignment create --assignee "$AGENT_PRINCIPAL_ID" --role "Reader"                      --scope "$SCOPE"
@@ -303,14 +317,22 @@ Lab-level problems: **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)**.
 
 ---
 
-## Manual steps summary
+## What is automated, and what is not
 
-Everything the deployment cannot do for you:
+Automated by `scripts/deploy.sh --with-agent`:
 
-1. **Create the SRE Agent** — portal, unless the API is available in your tenant.
-2. **Connect GitHub** — interactive OAuth consent.
-3. **Assign roles to the agent identity** — the object ID only exists after the agent does.
-4. **Optionally enable remediation** — a deliberate decision, kept manual on purpose.
+1. **Creating the SRE Agent** — a `Microsoft.App/agents` resource, with its mode and region
+   validated before the deployment starts.
+2. **Wiring it to telemetry** — the lab's Application Insights is attached at creation.
+3. **Creating its identity** — a dedicated user-assigned identity, holding no roles.
+4. **Recording it** — name, region, mode and principal ID land in `.lab-state.json` and the
+   deployment summary.
+
+Still yours to do, on purpose:
+
+1. **Connect GitHub** — interactive OAuth consent; a human has to approve it.
+2. **Grant the agent access** — `scripts/enable-sre-remediation.sh`, kept a separate command so
+   that giving an automated agent write access is never a side effect of deploying a demo.
 
 Everything else — infrastructure, applications, telemetry, alert rules, scenarios — is fully
 automated.

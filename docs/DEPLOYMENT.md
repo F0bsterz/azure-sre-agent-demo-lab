@@ -54,8 +54,9 @@ Twenty steps, in order:
 | 2 | Validate Azure authentication | |
 | 3 | Select subscription | Defaults to the current one |
 | 4 | Validate region | Against the subscription's available locations |
-| 5 | Register resource providers | Waits for registration to complete |
-| 6 | Determine `ADMIN_CIDR` | Detects your public IP; refuses to default to `0.0.0.0/0` |
+| 5 | Register resource providers | Waits for registration to complete. `Microsoft.App` only when `--with-agent` |
+| 5b | Validate SRE Agent options | Only with `--with-agent`. Checks the mode, and that the region actually offers SRE Agent |
+| 6 | Determine `ADMIN_CIDR` | Prompts for the CIDRs; refuses to default to `0.0.0.0/0` |
 | 7 | Validate SKUs and quota | Caches the SKU catalogue once; checks family and regional quota |
 | 8 | Resolve lab identity | Generates a suffix unless `--suffix` is given |
 | 9 | Prepare SSH key | ed25519, written to `.secrets/`, reused if present |
@@ -91,11 +92,19 @@ reused when `--suffix` is supplied.
 --subscription <id>    Subscription (default: current az account)
 --location <region>    Azure region (default: eastus)
 --suffix <string>      Reuse a specific lab suffix
---admin-cidr <cidr>    Allowed inbound CIDR (default: detected public IP /32)
+--admin-cidr <cidr>    Allowed inbound CIDR. Repeatable; prompted for when omitted
 --skip-build           Do not rebuild container images
 --skip-apps            Deploy infrastructure only
+--with-agent           Also create an Azure SRE Agent (off by default; chargeable)
+--agent-mode <mode>    ReadOnly | Review (default) | Autonomous
+--agent-location <r>   Agent region when the lab region does not offer SRE Agent
 --yes                  No confirmation prompt
 ```
+
+`--with-agent` adds a `Microsoft.App/agents` resource and a user-assigned identity for it. The
+identity is created with **no role assignments**; run `scripts/enable-sre-remediation.sh` to
+grant access. SRE Agent is not offered in every region — notably not in `eastus` — so step 5b
+validates the region up front and lists the valid ones rather than failing mid-deployment.
 
 Anything not passed can come from `.env` — copy `.env.example` and edit. Command-line arguments
 take precedence over `.env`.

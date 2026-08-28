@@ -314,3 +314,36 @@ test('the SRE agent is opt-in and its modes agree across Bicep and deploy.sh', (
     );
   }
 });
+
+test('every deploy.sh flag named in the docs actually exists in deploy.sh', () => {
+  const deploy = read('scripts/deploy.sh');
+  const parser = deploy.match(/while \[\[ \$# -gt 0 \]\]; do[\s\S]*?\ndone/)[0];
+  const usage = deploy.match(/usage\(\) \{[\s\S]*?\nUSAGE\n\}/)[0];
+  const flagsIn = (text) => new Set([...text.matchAll(/(?<![-\w])(--[a-z][a-z-]{2,})/g)].map((m) => m[1]));
+
+  // deploy.sh must accept everything its own help advertises.
+  for (const flag of flagsIn(usage)) {
+    assert.ok(parser.includes(flag), `deploy.sh --help advertises ${flag} but does not parse it`);
+  }
+
+  // ...and so must the Options block in the deployment guide.
+  const options = read('docs/DEPLOYMENT.md').match(/## Options\n+```\n([\s\S]*?)```/)[1];
+  for (const flag of flagsIn(options)) {
+    assert.ok(parser.includes(flag), `DEPLOYMENT.md documents ${flag} but deploy.sh does not parse it`);
+  }
+});
+
+test('the SRE agent settings in .env.example are the ones deploy.sh reads', () => {
+  const env = read('.env.example');
+  const deploy = read('scripts/deploy.sh');
+
+  const declared = [...env.matchAll(/^([A-Z_]*AGENT[A-Z_]*)=/gm)].map((m) => m[1]);
+  assert.ok(declared.length > 0, '.env.example should document the agent settings');
+
+  for (const name of declared) {
+    assert.ok(
+      new RegExp(`\\$\\{${name}:?-`).test(deploy),
+      `.env.example declares ${name} but deploy.sh never reads it`,
+    );
+  }
+});

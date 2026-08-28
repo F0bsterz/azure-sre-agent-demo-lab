@@ -245,8 +245,9 @@ Deploy the Azure SRE Agent demo lab into my own GitHub repository and Azure subs
    remind me that this lab creates real, billed Azure resources and that
    ./scripts/destroy-lab.sh removes them when I am finished.
 
-Connecting the Azure SRE Agent itself is interactive and cannot be scripted end to end —
-point me at docs/AZURE-SRE-AGENT-SETUP.md when the lab is up.
+Creating the agent is scripted (step 3), but connecting it to GitHub needs interactive OAuth
+consent, and granting it write access is a deliberate separate command. Point me at
+docs/AZURE-SRE-AGENT-SETUP.md for both once the lab is up.
 ```
 
 ---
@@ -267,6 +268,7 @@ point me at docs/AZURE-SRE-AGENT-SETUP.md when the lab is up.
 | Key Vault | Standard, RBAC | Generated database and runner credentials. |
 | Managed identity | User-assigned | Contributor on **this resource group only**. |
 | Alert rules | 7 scheduled query rules | One per scenario; scenario 02 has two (node pressure + pending pods). 5-minute evaluation. |
+| Azure SRE Agent | `Microsoft.App/agents` | **Optional**, only with `--with-agent`. Created with its own user-assigned identity holding no roles. |
 
 Every resource is tagged `project=azure-sre-agent-demo`, `environment=demo`,
 `managedBy=bicep`, `purpose=sre-training`.

@@ -68,10 +68,17 @@ you care about.
 | Deploying user | Key Vault Secrets Officer | The lab vault only |
 | `scenario-runner` service account | Namespace Role | `sre-demo` namespace only |
 | `scenario-runner` service account | Read-only ClusterRole | Nodes (unavoidable: Nodes are not namespaced) |
+| SRE Agent user-assigned identity | **None at creation** | Granted separately, resource group only |
 
 **Why Contributor at all?** Scenario 05 creates and deletes an NSG rule, and scenario 02 scales
 the AKS node pool. Both are write operations against Azure Resource Manager. The grant is at
 resource-group scope, so the identity cannot touch anything else in the subscription.
+
+**The SRE Agent starts with nothing.** `--with-agent` creates the agent with its own dedicated
+user-assigned identity and zero role assignments — deliberately not the lab identity, which
+already holds Contributor and would have handed the agent write access as a side effect of
+deploying. Access is granted only when you run `scripts/enable-sre-remediation.sh`, and revoked
+with `--revoke`.
 
 **Nothing is granted at subscription scope.** Not during deployment, not for the SRE Agent, not
 for remediation.
