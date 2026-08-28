@@ -712,6 +712,8 @@ fi
 
 if [[ "${SKIP_APPS}" == "true" ]]; then
   warn "Skipping application deployment (--skip-apps)"
+  warn ".lab-state.json was NOT refreshed and still describes the previous deployment."
+  warn "Re-run without --skip-apps before using the other scripts."
   exit 0
 fi
 
