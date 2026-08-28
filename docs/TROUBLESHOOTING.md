@@ -359,6 +359,37 @@ az vm run-command invoke -g $RG -n <app-vm> --command-id RunShellScript \
 
 ---
 
+## Subscription governance automation
+
+On Microsoft-managed subscriptions (MCAPS / `MngEnv*`), a tenant automation called
+**MCAPSGovernance-AutomationApp** holds Owner at the management group and acts on lab
+resources without warning. Observed during a demo run:
+
+| Symptom | What actually happened |
+|---|---|
+| Everything works, then Magic 8 Ball returns nothing and `kubectl` cannot resolve the API server. Scenario verification reports `0/0 replicas` and `no image` | The automation called `Microsoft.ContainerService/managedClusters/stop/action`. The cluster is **Stopped**, not broken |
+| `Allow-SSH-Admin` disappears from the app NSG some time after deployment, while the 8080 rule survives | The automation rewrote the NSG and stripped inbound TCP 22 |
+
+Confirm before assuming a lab bug:
+
+```bash
+az aks show -g <rg> -n <cluster> --query powerState.code -o tsv    # Stopped?
+
+az monitor activity-log list -g <rg> --offset 3h --max-events 300 \
+  --query "[?contains(operationName.value,'stop')].{time:eventTimestamp,caller:caller}" -o table
+```
+
+Recover with `az aks start -g <rg> -n <cluster>` — allow two to three minutes after the
+cluster reports `Running` for workloads to become reachable — then
+`scripts/grant-access.sh --cidr <your-ip>/32` to reinstate the SSH rule. `deploy.sh` step 20
+reconciles the same rules, which is why they reappear after a redeploy.
+
+Nothing here is caused by the lab, and nothing in the repository can prevent it. Budget for it
+when demonstrating on an MCAPS subscription: leaving a lab idle invites the cluster to be
+stopped underneath you.
+
+---
+
 ## Complete reset
 
 When the state is unclear:
