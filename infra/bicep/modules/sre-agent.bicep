@@ -5,7 +5,7 @@
 // true, because the agent is a chargeable managed service and is not available
 // in every region the rest of the lab can run in.
 //
-// The agent is given a system-assigned identity but NO role assignments here.
+// The agent is given its own managed identity but NO role assignments here.
 // Investigation needs read access and remediation needs write access, and both
 // are granted deliberately by scripts/enable-sre-remediation.sh rather than as
 // a side effect of deploying a demo.
@@ -50,18 +50,36 @@ param appInsightsConnectionString string
 
 param tags object = {}
 
+// The agent's actions run as a managed identity, and ARM rejects the agent
+// unless actionConfiguration.identity names one that is attached to it. A
+// system-assigned identity cannot be referenced at creation time, so the agent
+// gets its own user-assigned identity.
+//
+// It is deliberately NOT the lab identity, which already holds Contributor on
+// the resource group: reusing it would hand the agent write access as a side
+// effect of deploying. This one starts with no role assignments at all.
+resource agentIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: 'id-${name}'
+  location: location
+  tags: tags
+}
+
 resource agent 'Microsoft.App/agents@2026-01-01' = {
   name: name
   location: location
   tags: tags
   identity: {
-    type: 'SystemAssigned'
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${agentIdentity.id}': {}
+    }
   }
   properties: {
     upgradeChannel: upgradeChannel
     actionConfiguration: {
       mode: mode
       accessLevel: accessLevel
+      identity: agentIdentity.id
     }
     logConfiguration: {
       applicationInsightsConfiguration: {
@@ -78,4 +96,5 @@ output agentLocation string = agent.location
 output agentMode string = mode
 
 // Consumed by scripts/enable-sre-remediation.sh to scope RBAC to this agent.
-output principalId string = agent.identity.principalId
+output principalId string = agentIdentity.properties.principalId
+output identityId string = agentIdentity.id
