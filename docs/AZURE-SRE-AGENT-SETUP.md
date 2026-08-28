@@ -12,6 +12,11 @@ first investigation.
 >
 > The agent is opt-in. Without `--with-agent` nothing is created, and the lab still deploys
 > and runs completely — `scripts/deploy.sh` never fails because no agent is connected.
+>
+> **It is also the most expensive part of the lab.** Azure SRE Agent bills a fixed always-on
+> charge of 4 Azure Agent Units per hour (~$0.40/hour), plus token-based usage while it works.
+> That is more than every other resource combined, and `stop-lab.sh` does **not** stop it —
+> the agent has no stopped state. Delete it or destroy the lab if it will sit idle.
 
 ---
 

@@ -291,9 +291,31 @@ agreement.
 | Container Registry Basic | ~$0.007/hr | ~$0.007/hr |
 | Log Analytics + App Insights | Usage-based, capped at 2 GB/day | Retention only |
 | Key Vault | Negligible | Negligible |
+| **Azure SRE Agent** (optional, `--with-agent`) | **~$0.40/hr** always-on, plus token-based usage | **~$0.40/hr — not stopped by `stop-lab.sh`** |
 
-**Roughly $0.25–0.35/hour running, and $0.04–0.05/hour stopped.** A two-hour demo costs well
-under a dollar; leaving it deployed but stopped for a month costs a few dollars in disks and IPs.
+**Without an agent: roughly $0.25–0.35/hour running, and $0.04–0.05/hour stopped.** A two-hour
+demo costs well under a dollar; leaving it deployed but stopped for a month costs a few dollars
+in disks and IPs.
+
+### The agent costs more than the rest of the lab
+
+Azure SRE Agent bills in **Azure Agent Units (AAU)**, in two parts:
+
+| Component | Rate | Notes |
+|---|---|---|
+| Always-on flow | 4 AAU/hour per agent, at $0.10/AAU = **$0.40/hour** | Fixed. The agent monitors and learns in the background whether or not you are demonstrating. |
+| Active flow | Token-based, $0.10/AAU | Charged only while an investigation or remediation runs. |
+
+So `--with-agent` roughly **triples** the running cost, to about **$0.65–0.75/hour**.
+
+> **`stop-lab.sh` does not stop the agent.** It deallocates the VMs and stops AKS, but the agent
+> has no stopped state — it keeps accruing the always-on charge, about **$10/day** or **$290/month**,
+> even with the rest of the lab shut down. Between demos, either delete the agent
+> (`az resource delete --ids "$(jq -r .sreAgentId .lab-state.json)"`) and recreate it later with
+> `--with-agent`, or use `destroy-lab.sh`, which removes it along with everything else.
+
+Check the [SRE Agent pricing page](https://azure.microsoft.com/pricing/details/sre-agent/) before
+running a long-lived lab — there is periodically a trial that waives the always-on charge.
 
 Use `./scripts/stop-lab.sh` between demos and `./scripts/destroy-lab.sh` when finished.
 
@@ -504,6 +526,9 @@ Full detail in **[docs/SECURITY.md](docs/SECURITY.md)**. In summary:
   demonstration environment, not a reference architecture; see
   [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for what would change in production.
 - `stop-lab` between demos; `destroy-lab` when finished.
+- **The optional SRE Agent is the single largest line item** at ~$0.40/hour, and `stop-lab` does
+  not stop it. Delete the agent or destroy the lab if it will sit idle. See
+  [Estimated resource footprint](#estimated-resource-footprint).
 
 ---
 
