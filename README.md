@@ -315,7 +315,7 @@ So `--with-agent` roughly **triples** the running cost, to about **$0.65–0.75/
 > `--with-agent`, or use `destroy-lab.sh`, which removes it along with everything else.
 
 Check the [SRE Agent pricing page](https://azure.microsoft.com/pricing/details/sre-agent/) before
-running a long-lived lab — there is periodically a trial that waives the always-on charge.
+running a long-lived lab.
 
 Use `./scripts/stop-lab.sh` between demos and `./scripts/destroy-lab.sh` when finished.
 
