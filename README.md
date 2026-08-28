@@ -59,6 +59,12 @@ themselves, or use to train an on-call team.
 
 ![Azure SRE Agent demo lab architecture](docs/sre-demo-architecture.svg)
 
+> **Scope.** The lab delivers the observe → detect → investigate half: real faults, real
+> telemetry, and 7 alert rules that genuinely fire. Routing those alerts into the agent so it
+> remediates automatically — the closed loop — is **out of scope**. The alert rules are created
+> with no action groups, and connecting them is left to the operator. See
+> [Azure SRE Agent setup](#azure-sre-agent-setup).
+
 <details>
 <summary>Logical view (Mermaid)</summary>
 
@@ -114,8 +120,8 @@ flowchart TB
     appi --> law
     ci --> law
     law --> alerts
-    alerts --> agent
-    agent -->|"investigate · remediate"| rg
+    alerts -.->|"not wired (out of scope)"| agent
+    agent -.->|"investigate · remediate (out of scope)"| rg
 ```
 </details>
 

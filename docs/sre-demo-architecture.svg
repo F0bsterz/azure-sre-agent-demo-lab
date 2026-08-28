@@ -72,7 +72,7 @@
     <path d="M10,20 l8,8 l16,-18" fill="none" stroke="#0B2545" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
   </g>
   <text x="102" y="54" fill="#FFFFFF" font-size="32" font-weight="700">Azure SRE Agent — Self-Healing Demo Environment</text>
-  <text x="103" y="86" fill="#AFCDEC" font-size="16.5">Closed-loop operations: observe → detect → investigate → remediate — all inside one blast-radius-contained resource group</text>
+  <text x="103" y="86" fill="#AFCDEC" font-size="16.5">Observe → detect → investigate — all inside one blast-radius-contained resource group. Automated remediation is out of scope.</text>
   <g transform="translate(1470,40)">
     <rect x="0" y="0" width="250" height="34" rx="17" fill="#0B2545" stroke="#50E6FF" stroke-width="1.5"/>
     <circle cx="22" cy="17" r="6" fill="#50E6FF"/>
@@ -107,7 +107,7 @@
     <g transform="translate(60,452)"><circle cx="6" cy="-5" r="6" fill="#0F6CBD"/><text x="22" y="0" font-weight="700">Least-privilege identity</text><text x="22" y="20" font-size="13" fill="#5A6B7B">Managed identity = Contributor on</text><text x="22" y="37" font-size="13" fill="#5A6B7B">THIS resource group only.</text></g>
     <g transform="translate(60,529)"><circle cx="6" cy="-5" r="6" fill="#0F6CBD"/><text x="22" y="0" font-weight="700">Private data tier</text><text x="22" y="20" font-size="13" fill="#5A6B7B">PostgreSQL has no public address.</text></g>
     <g transform="translate(60,589)"><circle cx="6" cy="-5" r="6" fill="#0F6CBD"/><text x="22" y="0" font-weight="700">Restricted ingress</text><text x="22" y="20" font-size="13" fill="#5A6B7B">Public access limited to ADMIN_CIDR.</text></g>
-    <g transform="translate(60,649)"><circle cx="6" cy="-5" r="6" fill="#0A8F8F"/><text x="22" y="0" font-weight="700">Closed-loop remediation</text><text x="22" y="20" font-size="13" fill="#5A6B7B">Alerts trigger the Azure SRE Agent to</text><text x="22" y="37" font-size="13" fill="#5A6B7B">investigate and auto-remediate.</text></g>
+    <g transform="translate(60,649)"><circle cx="6" cy="-5" r="6" fill="#0A8F8F"/><text x="22" y="0" font-weight="700">Closed-loop remediation — out of scope</text><text x="22" y="20" font-size="13" fill="#5A6B7B">Alerts fire but are not routed to the agent.</text><text x="22" y="37" font-size="13" fill="#5A6B7B">Wiring that loop is left to the operator.</text></g>
     <g transform="translate(60,726)"><circle cx="6" cy="-5" r="6" fill="#0A8F8F"/><text x="22" y="0" font-weight="700">Injectable fault scenarios</text><text x="22" y="20" font-size="13" fill="#5A6B7B">Disk pressure, cert swaps, resource</text><text x="22" y="37" font-size="13" fill="#5A6B7B">burn, image swaps, node scaling.</text></g>
     <g transform="translate(60,803)"><circle cx="6" cy="-5" r="6" fill="#0F6CBD"/><text x="22" y="0" font-weight="700">Full observability</text><text x="22" y="20" font-size="13" fill="#5A6B7B">App Insights + Container Insights →</text><text x="22" y="37" font-size="13" fill="#5A6B7B">Log Analytics → scheduled alerts.</text></g>
     <g transform="translate(60,880)"><circle cx="6" cy="-5" r="6" fill="#0F6CBD"/><text x="22" y="0" font-weight="700">Repeatable teardown</text><text x="22" y="20" font-size="13" fill="#5A6B7B">One suffix-named RG to create/destroy.</text></g>
@@ -227,7 +227,7 @@
   <text x="1322" y="588" class="meta" fill="#4A2E86">Telemetry pipeline</text>
   <text x="1322" y="612" font-size="13" fill="#5A6B7B">Apps &amp; cluster emit metrics/logs →</text>
   <text x="1322" y="631" font-size="13" fill="#5A6B7B">Log Analytics → alert rules evaluate →</text>
-  <text x="1322" y="650" font-size="13" fill="#5A6B7B">signals raised to the SRE Agent.</text>
+  <text x="1322" y="650" font-size="13" fill="#5A6B7B">signals available to the SRE Agent.</text>
 
   <!-- SRE Agent hero -->
   <g filter="url(#sh)"><rect x="1300" y="700" width="420" height="240" rx="16" fill="url(#agentg)"/></g>
