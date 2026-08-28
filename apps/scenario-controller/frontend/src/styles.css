@@ -755,6 +755,19 @@ section + section {
   font-size: 13px;
 }
 
+/* Sits above the fold so the way out of any broken state is the first thing seen. */
+.reset-bar.prominent {
+  border: 1px solid var(--danger, #C0392B);
+  border-left: 4px solid var(--danger, #C0392B);
+  background: color-mix(in srgb, var(--danger, #C0392B) 6%, var(--bg-inset));
+  margin-bottom: 20px;
+}
+
+.reset-bar.prominent .copy {
+  color: var(--text);
+  font-size: 14px;
+}
+
 .modal-backdrop {
   position: fixed;
   inset: 0;

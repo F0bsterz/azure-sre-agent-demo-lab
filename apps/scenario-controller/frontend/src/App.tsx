@@ -13,7 +13,7 @@ import type {
   VerificationResult,
 } from './types';
 
-type Tab = 'overview' | 'scenarios' | 'timeline' | 'runbook';
+type Tab = 'overview' | 'timeline' | 'runbook';
 
 const POLL_MS = 8000;
 const HISTORY_POINTS = 40;
@@ -244,7 +244,7 @@ export default function App() {
         {(
           [
             ['overview', 'Overview'],
-            ['scenarios', 'Incident scenarios'],
+
             ['timeline', 'Incident history'],
             ['runbook', 'SRE prompts'],
           ] as [Tab, string][]
@@ -277,7 +277,24 @@ export default function App() {
           </div>
         ) : null}
 
-        {(tab === 'overview' || tab === 'scenarios') && (
+        <section>
+          <div className="reset-bar prominent">
+            <div className="copy">
+              <strong>Reset entire lab</strong> — returns all six scenarios to baseline. Safe to press at
+              any time, as often as you like.
+            </div>
+            <button
+              className="btn danger"
+              onClick={() => setConfirm({ kind: 'reset-lab' })}
+              disabled={labResetBusy}
+            >
+              {labResetBusy ? <span className="spinner" /> : null}
+              Reset entire lab
+            </button>
+          </div>
+        </section>
+
+        {tab === 'overview' && (
           <section>
             <div className="section-head">
               <h2>System health</h2>
@@ -289,7 +306,7 @@ export default function App() {
           </section>
         )}
 
-        {(tab === 'overview' || tab === 'scenarios') && (
+        {tab === 'overview' && (
           <section>
             <div className="section-head">
               <h2>Active incident</h2>
@@ -325,7 +342,7 @@ export default function App() {
           </section>
         )}
 
-        {(tab === 'overview' || tab === 'scenarios') && (
+        {tab === 'overview' && (
           <section>
             <div className="section-head">
               <h2>Incident scenarios</h2>
@@ -408,25 +425,6 @@ export default function App() {
             </div>
           </section>
         )}
-
-        <section>
-          <div className="reset-bar">
-            <div className="copy">
-              <strong>Reset entire lab</strong> — stops the disk logger, removes the resource-pressure
-              workload, restores the AKS node pool baseline and the stable Magic 8 Ball image, closes
-              scenario database sessions, removes the NSG deny rule and reinstalls the valid certificate.
-              Safe to run repeatedly.
-            </div>
-            <button
-              className="btn danger"
-              onClick={() => setConfirm({ kind: 'reset-lab' })}
-              disabled={labResetBusy}
-            >
-              {labResetBusy ? <span className="spinner" /> : null}
-              Reset entire lab
-            </button>
-          </div>
-        </section>
       </main>
 
       <ConfirmDialog
